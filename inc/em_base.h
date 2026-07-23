@@ -3717,7 +3717,7 @@ static const SecurityTypeMap securityTypeMap[] = {
     { "WPA3 Transition", EM_AUTH_WPA3_TRANSITION }
 };
 
-static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
+//static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 static const unsigned char airties_vendor_oui[EM_VENDOR_OUI_SIZE] = {0x88, 0x41, 0xfc};
 static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
