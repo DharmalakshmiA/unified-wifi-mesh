@@ -2247,6 +2247,10 @@ typedef enum {
     vendor_ext_attr_id_link_report,     // data of type em_link_report_t
     vendor_ext_attr_id_passive,         // 1 byte: 0x01 indicates controller is in passive mode
 
+    //comcast vendor extension attributes, 0x100 - 0x1FF
+    vendor_ext_attr_id_wei_data = 0x100,
+
+
     vendor_ext_attr_id_max
 } vendor_ext_attr_id_t;
 
@@ -2277,6 +2281,7 @@ typedef enum {
     em_state_agent_steer_btm_res_pending,
     em_state_agent_beacon_report_pending,
     em_state_agent_link_quality_report_pending,
+    em_state_agent_vendor_data_pending,
 
     em_state_ctrl_unconfigured = 0x100,
     em_state_ctrl_wsc_m1_pending,
@@ -2365,6 +2370,7 @@ typedef enum {
     em_cmd_type_get_link_quality_report,
     em_cmd_type_unassoc_sta_query,
     em_cmd_type_unassoc_sta_result,
+    em_cmd_type_generic_data,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -3066,6 +3072,7 @@ typedef enum {
     em_bus_event_type_unassoc_sta_query,
     em_bus_event_type_unassoc_sta_link_metrics_query,
     em_bus_event_type_unassoc_sta_result,
+    em_bus_event_type_wei_app_data,
 
     em_bus_event_type_max
 } em_bus_event_type_t;
@@ -3158,6 +3165,7 @@ typedef enum {
     dm_orch_type_link_quality_report,
     dm_orch_type_unassoc_sta_link_req_query,
     dm_orch_type_unassoc_sta_result,
+    dm_orch_type_wei_data,
     
 } dm_orch_type_t;
 
@@ -3348,6 +3356,7 @@ typedef struct {
 		em_cmd_scan_params_t	scan_params;
         em_cmd_ap_metrics_rprt_params_t ap_metrics_params;
         em_cmd_unassoc_sta_query_params_t unassoc_sta_query_params;
+        void *raw_data;
     } u;
 	em_network_node_t *net_node;
 } em_cmd_params_t;
@@ -3710,6 +3719,7 @@ static const SecurityTypeMap securityTypeMap[] = {
 
 static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 static const unsigned char airties_vendor_oui[EM_VENDOR_OUI_SIZE] = {0x88, 0x41, 0xfc};
+static const unsigned char comcast_vendor_oui[EM_VENDOR_OUI_SIZE] = {0xd8, 0x9c, 0x8e};
 
 #ifndef SSL_KEY
 #if OPENSSL_VERSION_NUMBER < 0x30000000L
