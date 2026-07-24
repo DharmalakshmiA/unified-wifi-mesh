@@ -34,8 +34,6 @@
 #include "dm_easy_mesh.h"
 #include "dm_easy_mesh_ctrl.h"
 #include "util.h"
-// Near the top of src/dm/dm_sta.cpp
-#include "dm_sta_ext.h"  // 👈 ADD THIS INCLUDE HERE
 
 // Forward declaration of optional private-repo hook (defined weak below).
 // extern "C" void custom_decode_sta(dm_sta_t *sta, const cJSON *obj);
@@ -588,14 +586,35 @@ void dm_sta_t::decode_beacon_report(dm_sta_t *sta)
 // }
 
 
+// Weak lifetime hooks for the optional private extension (dm_sta_ext_t).
+// The public repo only has a forward declaration of dm_sta_ext_t, so it cannot
+// new/copy/delete the complete type. Object lifetime is therefore routed through
+// these hooks: the private repo provides strong overrides that operate on the
+// real type, while standalone public builds get these no-ops (extension absent).
+extern "C" __attribute__((weak)) dm_sta_ext_t *custom_sta_ext_create(void)
+{
+    return nullptr;
+}
+
+extern "C" __attribute__((weak)) dm_sta_ext_t *custom_sta_ext_clone(const dm_sta_ext_t *src)
+{
+    (void)src;
+    return nullptr;
+}
+
+extern "C" __attribute__((weak)) void custom_sta_ext_destroy(dm_sta_ext_t *ext)
+{
+    (void)ext;
+}
+
 dm_sta_t::dm_sta_t()
-    : m_sta_ext(new dm_sta_ext_t())
+    : m_sta_ext(custom_sta_ext_create())
 {
     memset(&m_sta_info, 0, sizeof(em_sta_info_t));
 }
 
 dm_sta_t::dm_sta_t(em_sta_info_t *sta)
-    : m_sta_ext(new dm_sta_ext_t())
+    : m_sta_ext(custom_sta_ext_create())
 {
     if (sta) {
         memcpy(&m_sta_info, sta, sizeof(em_sta_info_t));
@@ -605,13 +624,13 @@ dm_sta_t::dm_sta_t(em_sta_info_t *sta)
 }
 
 dm_sta_t::dm_sta_t(const dm_sta_t& sta)
-    : m_sta_ext(sta.m_sta_ext ? new dm_sta_ext_t(*sta.m_sta_ext) : nullptr)
+    : m_sta_ext(custom_sta_ext_clone(sta.m_sta_ext))
 {
     memcpy(&m_sta_info, &sta.m_sta_info, sizeof(em_sta_info_t));
 }
 
 dm_sta_t::~dm_sta_t()
 {
-    delete m_sta_ext;
+    custom_sta_ext_destroy(m_sta_ext);
     m_sta_ext = nullptr;
 }
