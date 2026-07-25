@@ -92,7 +92,6 @@ public:
     dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
     dm_tid_to_link_t m_tid_to_link;
     em_unassoc_sta_metrics_rsp_t    m_unassoc_sta_metrics_rsp;
-    em_unassoc_query_list_t m_unassoc_query_list;
 
     unsigned int m_num_unassoc_sta_metrics;
     em_unassoc_sta_metric_entry_t  m_unassoc_sta_metrics[EM_MAX_UNASSOC_STA];
