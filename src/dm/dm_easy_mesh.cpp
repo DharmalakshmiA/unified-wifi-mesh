@@ -69,26 +69,31 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
 		m_num_radios = 0;
 	}
     this->m_num_radios = obj.m_num_radios;
+    em_printfout("operator=: m_radio loop num_radios=%u cap=%u", obj.m_num_radios, (unsigned int)EM_MAX_BANDS);
     for (unsigned int i = 0; i < obj.m_num_radios; i++) {
         m_radio[i] = obj.m_radio[i];
     }
 
+    em_printfout("operator=: m_radio_cap loop cap=%u", (unsigned int)EM_MAX_BANDS);
     for(unsigned int i = 0; i < EM_MAX_BANDS; i++) {
         m_radio_cap[i] = obj.m_radio_cap[i];
     }
 
     this->m_num_bss = obj.m_num_bss;
-    for (unsigned int i = 0; i < EM_MAX_BSSS; i++) {
+    em_printfout("operator=: m_bss loop num_bss=%u cap=%u", obj.m_num_bss, (unsigned int)EM_MAX_BSSS);
+    for (unsigned int i = 0; i < obj.m_num_bss && i < EM_MAX_BSSS; i++) {
         m_bss[i] = obj.m_bss[i];
     }
     m_dpp = obj.m_dpp;
 
     m_num_opclass = obj.m_num_opclass;
-    for (unsigned int i = 0; i < EM_MAX_OPCLASS; i++) {
+    em_printfout("operator=: m_op_class loop num_opclass=%u cap=%u", obj.m_num_opclass, (unsigned int)EM_MAX_OPCLASS);
+    for (unsigned int i = 0; i < obj.m_num_opclass && i < EM_MAX_OPCLASS; i++) {
         m_op_class[i] = obj.m_op_class[i];
     }
 
     this->m_num_net_ssids = obj.m_num_net_ssids;
+    em_printfout("operator=: m_network_ssid loop num_net_ssids=%u cap=%u", obj.m_num_net_ssids, (unsigned int)EM_MAX_NET_SSIDS);
     for (unsigned int i = 0; i < EM_MAX_NET_SSIDS; i++) {
         m_network_ssid[i] = obj.m_network_ssid[i];
     }
@@ -96,17 +101,20 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
     m_db_cfg_param = obj.m_db_cfg_param;
 
     m_num_policy = obj.m_num_policy;
-    for (unsigned int i = 0; i < EM_MAX_POLICIES; i++) {
+    em_printfout("operator=: m_policy loop num_policy=%u cap=%u", obj.m_num_policy, (unsigned int)EM_MAX_POLICIES);
+    for (unsigned int i = 0; i < obj.m_num_policy && i < EM_MAX_POLICIES; i++) {
         m_policy[i] = obj.m_policy[i];
     }
 
     m_num_ap_mld = obj.m_num_ap_mld;
-    for (unsigned int i = 0; i < EM_MAX_AP_MLD; i++) {
+    em_printfout("operator=: m_ap_mld loop num_ap_mld=%u cap=%u", obj.m_num_ap_mld, (unsigned int)EM_MAX_AP_MLD);
+    for (unsigned int i = 0; i < obj.m_num_ap_mld && i < EM_MAX_AP_MLD; i++) {
         m_ap_mld[i] = obj.m_ap_mld[i];
     }
 
     m_num_assoc_sta_mld = obj.m_num_assoc_sta_mld;
-    for (unsigned int i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
+    em_printfout("operator=: m_assoc_sta_mld loop num_assoc_sta_mld=%u cap=%u", obj.m_num_assoc_sta_mld, (unsigned int)EM_MAX_ASSOC_STA_MLD);
+    for (unsigned int i = 0; i < obj.m_num_assoc_sta_mld && i < EM_MAX_ASSOC_STA_MLD; i++) {
         m_assoc_sta_mld[i] = obj.m_assoc_sta_mld[i];
     }
 
