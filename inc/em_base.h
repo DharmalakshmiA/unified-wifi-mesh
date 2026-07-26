@@ -74,6 +74,11 @@ extern "C"
 #define EM_MAX_SERVICE          8
 #define EM_MAX_BSS_PER_RADIO           16
 #define EM_MAX_QOS_MGMT_POLICY         4
+// Max QoS Management policy entries stored per data-model policy object.
+// In practice at most one entry is populated per policy; 16 keeps generous
+// headroom while avoiding the huge EM_MAX_STA_PER_AGENT (256) sizing that
+// inflated em_policy_t (and thus dm_easy_mesh_t) resident memory.
+#define EM_MAX_QOS_MGMT_STA            16
 #define EM_MAX_RADIO_PER_AGENT         4
 #define EM_MAX_TRAFFIC_SEP_SSID        8
 #define EM_MAX_FREQ_RECORDS_PER_RADIO  8
@@ -3644,7 +3649,7 @@ typedef struct {
 	em_8021q_settings_policy_t  def_8021q_settings;
 	em_traffic_separation_policy_t traffic_separ;
     unsigned int num_qos_mgt;
-    em_qos_mgt_policy_t qos_mgt[EM_MAX_STA_PER_AGENT];
+    em_qos_mgt_policy_t qos_mgt[EM_MAX_QOS_MGMT_STA];
     unsigned int num_backhaul_bss_config;
     em_backhaul_bss_config_policy_t backhaul_bss_config[EM_MAX_BSS_PER_RADIO];
     em_link_stats_alarm_cfg_t link_stats_alarm_cfg;

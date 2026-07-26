@@ -139,7 +139,7 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 			}
 		}
 	} else if (type == em_policy_id_type_qos_mgt) {
-		if (m_policy.num_qos_mgt < EM_MAX_STA_PER_AGENT) {
+		if (m_policy.num_qos_mgt < EM_MAX_QOS_MGMT_STA) {
 			unsigned int slot = m_policy.num_qos_mgt;
 			cJSON *mac_arr_obj;
 			if ((mac_arr_obj = cJSON_GetObjectItem(obj, "MSCS Disallowed STA List")) != NULL) {
@@ -161,6 +161,12 @@ int dm_policy_t::decode(const cJSON *obj, void *parent_id, em_policy_id_type_t t
 				}
 			}
 			m_policy.num_qos_mgt++;
+			em_printfout("qos_mgt slot=%u used num_qos_mgt=%u cap=%u (num_mscs=%u num_scs=%u)",
+					slot, m_policy.num_qos_mgt, (unsigned int)EM_MAX_QOS_MGMT_STA,
+					m_policy.qos_mgt[slot].num_mscs, m_policy.qos_mgt[slot].num_scs);
+		} else {
+			em_printfout("qos_mgt policy dropped: num_qos_mgt=%u reached cap=%u",
+					m_policy.num_qos_mgt, (unsigned int)EM_MAX_QOS_MGMT_STA);
 		}
 	} else if (type == em_policy_id_type_alarm_threshold) {
         if ((tmp = cJSON_GetObjectItem(obj, "Collection Start Time")) != NULL) {
