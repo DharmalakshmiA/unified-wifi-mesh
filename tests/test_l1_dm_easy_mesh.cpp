@@ -5279,7 +5279,7 @@ TEST(dm_easy_mesh_t, dm_easy_mesh_t_default_construction_initializes_all_members
     EXPECT_EQ(dm.m_num_interfaces, 0u);
     EXPECT_EQ(dm.m_num_radios, 0u);
     EXPECT_EQ(dm.m_num_opclass, 0u);
-    EXPECT_EQ(dm.m_num_policy, 0u);
+    EXPECT_EQ(dm.get_num_policy(), 0u);
     EXPECT_EQ(dm.m_num_bss, 0u);
     EXPECT_EQ(dm.m_num_ap_mld, 0u);
     EXPECT_EQ(dm.m_num_net_ssids, 0u);
@@ -14417,7 +14417,13 @@ TEST(dm_easy_mesh_t, get_num_policy_default) {
 TEST(dm_easy_mesh_t, get_num_policy_returns_correct_value_3) {
     std::cout << "Entering get_num_policy_returns_correct_value_3 test" << std::endl;
     dm_easy_mesh_t obj;
-    obj.m_num_policy = 3;
+    dm_policy_t pol;
+    pol.m_policy.id.type = em_policy_id_type_steering_local;
+    obj.set_policy(pol);
+    pol.m_policy.id.type = em_policy_id_type_steering_btm;
+    obj.set_policy(pol);
+    pol.m_policy.id.type = em_policy_id_type_steering_param;
+    obj.set_policy(pol);
     std::cout << "Invoking get_num_policy()" << std::endl;
     unsigned int retVal = obj.get_num_policy();
     std::cout << "Returned value from get_num_policy(): " << retVal << std::endl;
@@ -14452,12 +14458,21 @@ TEST(dm_easy_mesh_t, get_num_policy_returns_correct_value_3) {
 TEST(dm_easy_mesh_t, get_num_policy_returns_UINT_MAX) {
     std::cout << "Entering get_num_policy_returns_UINT_MAX test" << std::endl;
     dm_easy_mesh_t obj;
-    obj.m_num_policy = UINT_MAX;
-    std::cout << "Set m_num_policy to: " << obj.m_num_policy << std::endl;
+    const em_policy_id_type_t types[] = {
+        em_policy_id_type_steering_local, em_policy_id_type_steering_btm,
+        em_policy_id_type_steering_param, em_policy_id_type_ap_metrics_rep,
+        em_policy_id_type_radio_metrics_rep, em_policy_id_type_default_8021q_settings,
+        em_policy_id_type_traffic_separation, em_policy_id_type_channel_scan };
+    for (unsigned int i = 0; i < 8; i++) {
+        dm_policy_t pol;
+        pol.m_policy.id.type = types[i];
+        obj.set_policy(pol);
+    }
+    std::cout << "Set number of policies to: " << obj.get_num_policy() << std::endl;
     std::cout << "Invoking get_num_policy()" << std::endl;
     unsigned int retVal = obj.get_num_policy();
     std::cout << "Returned value from get_num_policy(): " << retVal << std::endl;
-    EXPECT_EQ(retVal, UINT_MAX);
+    EXPECT_EQ(retVal, 8u);
     std::cout << "Exiting get_num_policy_returns_UINT_MAX test" << std::endl;
 }
 
@@ -14487,8 +14502,16 @@ TEST(dm_easy_mesh_t, get_num_policy_returns_UINT_MAX) {
 TEST(dm_easy_mesh_t, get_num_policy_returns_correct_value_5) {
     std::cout << "Entering get_num_policy_returns_correct_value_5 test" << std::endl;
     dm_easy_mesh_t obj;
-    obj.m_num_policy = 5;
-    std::cout << "Set m_num_policy to: " << obj.m_num_policy << std::endl;
+    const em_policy_id_type_t types[] = {
+        em_policy_id_type_steering_local, em_policy_id_type_steering_btm,
+        em_policy_id_type_steering_param, em_policy_id_type_ap_metrics_rep,
+        em_policy_id_type_radio_metrics_rep };
+    for (unsigned int i = 0; i < 5; i++) {
+        dm_policy_t pol;
+        pol.m_policy.id.type = types[i];
+        obj.set_policy(pol);
+    }
+    std::cout << "Set number of policies to: " << obj.get_num_policy() << std::endl;
     std::cout << "Invoking get_num_policy()" << std::endl;
     unsigned int retVal = obj.get_num_policy();
     std::cout << "Returned value from get_num_policy(): " << retVal << std::endl;
@@ -15374,14 +15397,23 @@ TEST(dm_easy_mesh_t, get_policy_valid_index)
     const char* testName = "get_policy_valid_index";
     std::cout << "Entering " << testName << " test" << std::endl;
     dm_easy_mesh_t mesh;
-    mesh.m_num_policy = 2;
-    mesh.m_policy[0].m_policy.id.type = em_policy_id_type_steering_local;
-    mesh.m_policy[1].m_policy.id.type = em_policy_id_type_traffic_separation;
-    unsigned int index = 1;
-    std::cout << "Invoking get_policy(" << index << ")" << std::endl;
-    dm_policy_t* policy = mesh.get_policy(index);
-    std::cout << "Retrieved policy type = " << static_cast<unsigned int>(policy->m_policy.id.type) << std::endl;
-    EXPECT_EQ(policy->m_policy.id.type, em_policy_id_type_traffic_separation);
+    dm_policy_t pol;
+    pol.m_policy.id.type = em_policy_id_type_steering_local;
+    mesh.set_policy(pol);
+    pol.m_policy.id.type = em_policy_id_type_traffic_separation;
+    mesh.set_policy(pol);
+    // Retrieve policies by index and confirm the traffic_separation policy is present
+    bool found = false;
+    for (unsigned int index = 0; index < mesh.get_num_policy(); index++) {
+        std::cout << "Invoking get_policy(" << index << ")" << std::endl;
+        dm_policy_t* policy = mesh.get_policy(index);
+        ASSERT_NE(policy, nullptr);
+        std::cout << "Retrieved policy type = " << static_cast<unsigned int>(policy->m_policy.id.type) << std::endl;
+        if (policy->m_policy.id.type == em_policy_id_type_traffic_separation) {
+            found = true;
+        }
+    }
+    EXPECT_TRUE(found);
     std::cout << "Exiting " << testName << " test" << std::endl;
 }
 
@@ -15411,7 +15443,9 @@ TEST(dm_easy_mesh_t, get_policy_invalid_index)
     const char* testName = "get_policy_invalid_index";
     std::cout << "Entering " << testName << " test" << std::endl;
     dm_easy_mesh_t mesh;
-    mesh.m_num_policy = 1;
+    dm_policy_t pol;
+    pol.m_policy.id.type = em_policy_id_type_steering_local;
+    mesh.set_policy(pol);
     unsigned int index = 5;
     std::cout << "Invoking get_policy(" << index << ")" << std::endl;
     dm_policy_t* policy = mesh.get_policy(index);
@@ -15447,8 +15481,9 @@ TEST(dm_easy_mesh_t, get_policy_by_ref_valid_index)
     const char* testName = "get_policy_by_ref_valid_index";
     std::cout << "Entering " << testName << " test" << std::endl;
     dm_easy_mesh_t mesh;
-    mesh.m_num_policy = 1;
-    mesh.m_policy[0].m_policy.id.type = em_policy_id_type_steering_btm;
+    dm_policy_t pol;
+    pol.m_policy.id.type = em_policy_id_type_steering_btm;
+    mesh.set_policy(pol);
     unsigned int index = 0;
     std::cout << "Invoking get_policy_by_ref(" << index << ")" << std::endl;
     dm_policy_t& policy = mesh.get_policy_by_ref(index);
@@ -18844,100 +18879,6 @@ TEST(dm_easy_mesh_t, set_num_network_ssid_max_boundary)
 }
 
 /**
- * @brief Verify that set_num_policy correctly assigns a zero value to m_num_policy.
- *
- * This test checks if the set_num_policy method correctly updates the internal state (m_num_policy) of a dm_easy_mesh_t object when provided with a zero value. The objective is to ensure that the method handles a boundary input of zero appropriately.
- *
- * **Test Group ID:** Basic: 01
- * **Test Case ID:** 484@n
- * **Priority:** High
- *
- * **Pre-Conditions:** None
- * **Dependencies:** None
- * **User Interaction:** None
- *
- * **Test Procedure:**
- * | Variation / Step | Description                                                                                          | Test Data                                  | Expected Result                                               | Notes       |
- * | :--------------: | ---------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------- | ----------- |
- * | 01               | Initialize dm_easy_mesh_t object, set policy_val to 0, invoke set_num_policy, then validate m_num_policy. | policy_val = 0, m_num_policy expected = 0  | m_num_policy equals 0 and assertion EXPECT_EQ passes.         | Should Pass |
- */
-TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_zero_value)
-{
-    std::cout << "Entering set_num_policy_set_policy_with_zero_value test" << std::endl;
-    dm_easy_mesh_t mesh_obj;
-    unsigned int policy_val = 0;
-    std::cout << "Invoking set_num_policy with value: " << policy_val << std::endl;
-    mesh_obj.set_num_policy(policy_val);
-    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;
-    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);
-    std::cout << "Exiting set_num_policy_set_policy_with_zero_value test" << std::endl;
-}
-
-/**
- * @brief Verifies that set_num_policy correctly updates the m_num_policy attribute with a positive value.
- *
- * This test is designed to ensure that when a positive policy value is provided to the set_num_policy method, the internal m_num_policy attribute of the dm_easy_mesh_t object is updated accordingly. This helps verify the proper functioning of the policy setting mechanism.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 485@n
- * **Priority:** High@n
- *
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- *
- * **Test Procedure:**@n
- * | Variation / Step | Description                                                                                                              | Test Data                           | Expected Result                                                   | Notes      |
- * | :----:           | -----------                                                                                                              | ----------                          | --------------                                                  | -----      |
- * | 01               | Create a dm_easy_mesh_t object, invoke set_num_policy with a positive value (100), and verify m_num_policy is updated.   | policy_val = 100, m_num_policy = 100| m_num_policy is equal to 100; EXPECT_EQ assertion passes          | Should Pass|
- */
-TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_positive_value)
-{
-    std::cout << "Entering set_num_policy_set_policy_with_positive_value test" << std::endl;
-    dm_easy_mesh_t mesh_obj;
-    unsigned int policy_val = 100;
-    std::cout << "Invoking set_num_policy with value: " << policy_val << std::endl;
-    mesh_obj.set_num_policy(policy_val);
-    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;
-    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);
-    std::cout << "Exiting set_num_policy_set_policy_with_positive_value test" << std::endl;
-}
-
-/**
- * @brief Verify that dm_easy_mesh_t::set_num_policy correctly sets m_num_policy to the maximum unsigned int value.
- *
- * This test case verifies that when the API set_num_policy is invoked with the maximum unsigned int value, it correctly updates the object's m_num_policy field.
- *
- * **Test Group ID:** Basic: 01@n
- * **Test Case ID:** 486@n
- * **Priority:** High@n
- *
- * **Pre-Conditions:** None@n
- * **Dependencies:** None@n
- * **User Interaction:** None@n
- *
- * **Test Procedure:**@n
- * | Variation / Step | Description | Test Data | Expected Result | Notes |
- * | :----: | --------- | ---------- |-------------- | ----- |
- * | 01 | Log entry message for test start | None | Message indicating the start of the test is printed | Should be successful |
- * | 02 | Create an instance of dm_easy_mesh_t | None | Instance of dm_easy_mesh_t is created | Should be successful |
- * | 03 | Set policy value to maximum unsigned int and invoke set_num_policy | policy_val = std::numeric_limits<unsigned int>::max() | m_num_policy is updated to policy_val | Should Pass |
- * | 04 | Verify m_num_policy matches the policy_val | input: mesh_obj.m_num_policy, expected: policy_val | m_num_policy equals policy_val (assertion passes) | Should Pass |
- * | 05 | Log exit message for test finish | None | Message indicating the test exit is printed | Should be successful |
- */
-TEST(dm_easy_mesh_t, set_num_policy_set_policy_with_max_value)
-{
-    std::cout << "Entering set_num_policy_set_policy_with_max_value test" << std::endl;
-    dm_easy_mesh_t mesh_obj;
-    unsigned int policy_val = std::numeric_limits<unsigned int>::max();
-    std::cout << "Invoking set_num_policy with value: " << policy_val << std::endl;
-    mesh_obj.set_num_policy(policy_val);
-    std::cout << "m_num_policy after invocation: " << mesh_obj.m_num_policy << std::endl;
-    EXPECT_EQ(mesh_obj.m_num_policy, policy_val);
-    std::cout << "Exiting set_num_policy_set_policy_with_max_value test" << std::endl;
-}
-
-/**
  * @brief Test for adding a new policy to the mesh object using set_policy.
  *
  * This test validates that a new policy is correctly added to the dm_easy_mesh_t object when set_policy is invoked.
@@ -18974,9 +18915,11 @@ TEST(dm_easy_mesh_t, set_policy_AddNewPolicy)
     memcpy(policy.m_policy.id.dev_mac, device_mac, 6);
     std::cout << "Invoking set_policy with em_policy_id_type_steering_local policy type" << std::endl;
     mesh.set_policy(policy);
-    EXPECT_EQ(mesh.m_num_policy, 1u);
+    EXPECT_EQ(mesh.get_num_policy(), 1u);
+    dm_policy_t* stored = mesh.get_policy(0);
+    ASSERT_NE(stored, nullptr);
+    EXPECT_STREQ(stored->m_policy.id.net_id, "net1");
     mesh.deinit();
-    EXPECT_STREQ(mesh.m_policy[0].m_policy.id.net_id, "net1");
     std::cout << "Exiting set_policy_AddNewPolicy test" << std::endl;
 }
 
@@ -19022,9 +18965,11 @@ TEST(dm_easy_mesh_t, set_policy_ReplaceExistingPolicy)
     p2.m_policy.interval = 123;
     std::cout << "Invoking set_policy with interval as 123" << std::endl;
     mesh.set_policy(p2);
-    EXPECT_EQ(mesh.m_num_policy, 1u);
+    EXPECT_EQ(mesh.get_num_policy(), 1u);
+    dm_policy_t* stored = mesh.get_policy(0);
+    ASSERT_NE(stored, nullptr);
+    EXPECT_EQ(stored->m_policy.interval, 123);
     mesh.deinit();
-    EXPECT_EQ(mesh.m_policy[0].m_policy.interval, 123);
     std::cout << "Exiting set_policy_ReplaceExistingPolicy test" << std::endl;
 }
 
@@ -19069,8 +19014,8 @@ TEST(dm_easy_mesh_t, set_policy_DifferentNetIdAddsNewPolicy)
     mesh.set_policy(p1);
     std::cout << "Invoking set_policy with net_id net2" << std::endl;
     mesh.set_policy(p2);
+    EXPECT_EQ(mesh.get_num_policy(), 2u);
     mesh.deinit();
-    EXPECT_EQ(mesh.m_num_policy, 2u);
     std::cout << "Exiting set_policy_DifferentNetIdAddsNewPolicy test" << std::endl;
 }
 
@@ -19111,8 +19056,8 @@ TEST(dm_easy_mesh_t, set_policy_SameIdsDifferentTypeAddsNewPolicy)
     mesh.set_policy(p1);
     std::cout << "Invoking set_policy with em_policy_id_type_traffic_separation type" << std::endl;
     mesh.set_policy(p2);
+    EXPECT_EQ(mesh.get_num_policy(), 2u);
     mesh.deinit();
-    EXPECT_EQ(mesh.m_num_policy, 2u);
     std::cout << "Exiting set_policy_SameIdsDifferentTypeAddsNewPolicy test" << std::endl;
 }
 

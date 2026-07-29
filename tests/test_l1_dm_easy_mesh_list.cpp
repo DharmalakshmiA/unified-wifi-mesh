@@ -705,7 +705,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_data_model_ExistentNetworkID) {
               << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[4]) << ":"
               << std::setw(2) << std::setfill('0') << static_cast<int>(dm2->m_device.m_device_info.intf.mac[5])
               << std::dec << std::endl;
-    std::cout << "Num policies: " << dm2->m_num_policy << std::endl;
+    std::cout << "Num policies: " << dm2->get_num_policy() << std::endl;
     std::cout << "Num op classes: " << dm2->m_num_opclass << std::endl;
     ASSERT_STREQ(dm2->m_device.m_device_info.id.net_id, net_id);
     ASSERT_EQ(memcmp(dm2->m_device.m_device_info.intf.mac, mac, 6), 0);
@@ -1092,7 +1092,7 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_dm_valid)
     ASSERT_NE(firstElement, nullptr);
 	EXPECT_STREQ(firstElement->m_device.m_device_info.id.net_id, "Network2");
 	EXPECT_EQ(firstElement->m_device.m_device_info.profile, em_profile_type_3);
-	EXPECT_EQ(firstElement->m_num_policy, 8);
+	EXPECT_EQ(firstElement->get_num_policy(), 8);
     std::cout << "Exiting get_first_dm_valid test" << std::endl;
 }
 
@@ -1213,8 +1213,6 @@ TEST_F(dm_easy_mesh_list_tTEST, get_first_policy_empty_policy_list)
 {
     const char* testName = "get_first_policy_empty_policy_list";
     std::cout << "Entering " << testName << " test" << std::endl;
-    dm_easy_mesh_t dm;
-    dm.m_num_policy = 0;
     std::cout << "Invoking: get_first_policy()" << std::endl;
     dm_policy_t* pol = list.get_first_policy();
     ASSERT_NE(pol, nullptr);
