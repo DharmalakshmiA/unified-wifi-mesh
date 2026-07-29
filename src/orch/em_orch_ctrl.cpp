@@ -521,6 +521,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
             // baseline and doesn't re-detect the same change as new.
             dm_easy_mesh_t *dev_dm = m_mgr->get_data_model(GLOBAL_NET_ID, dm->m_device.m_device_info.intf.mac);
             if (dev_dm != nullptr) {
+                dev_dm->alloc_policy_storage();
                 for (unsigned int p = 0; p < dm->get_num_policy(); p++) {
                     dm_policy_t &pol = dm->get_policy_by_ref(p);
                     bool found = false;

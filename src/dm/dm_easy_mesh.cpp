@@ -96,8 +96,11 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
     m_db_cfg_param = obj.m_db_cfg_param;
 
     m_num_policy = obj.m_num_policy;
-    for (unsigned int i = 0; i < EM_MAX_POLICIES; i++) {
-        m_policy[i] = obj.m_policy[i];
+    if (obj.m_policy != NULL) {
+        alloc_policy_storage();
+        for (unsigned int i = 0; i < EM_MAX_POLICIES; i++) {
+            m_policy[i] = obj.m_policy[i];
+        }
     }
 
     m_num_ap_mld = obj.m_num_ap_mld;
@@ -1095,6 +1098,8 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
         cJSON_Delete(parent_obj);
         return EM_PARSE_ERR_GEN;
     }
+
+    alloc_policy_storage();
 
     if ((alarm_obj = cJSON_GetObjectItem(policy_obj, "Algorithm Run Policy")) != NULL) {
         snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
@@ -3128,6 +3133,10 @@ void dm_easy_mesh_t::deinit()
         hash_map_remove(m_sta_dassoc_map, key);
     }
 	hash_map_destroy(m_sta_dassoc_map);
+	if (m_policy != NULL) {
+        delete[] m_policy;
+        m_policy = NULL;
+    }
 	if (m_wifi_data != nullptr) {
         free(m_wifi_data);
         m_wifi_data = nullptr;
@@ -3140,6 +3149,7 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 	dm_policy_t *ppolicy;
 	bool found_match = false;
 	bool temp = 0;
+	alloc_policy_storage();
     for (i = 0; i < m_num_policy; i++) {
         ppolicy = &m_policy[i];
         temp = ((strncmp(policy.m_policy.id.net_id, ppolicy->m_policy.id.net_id, strlen(policy.m_policy.id.net_id)) == 0) &&
