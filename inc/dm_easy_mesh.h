@@ -74,7 +74,7 @@ public:
     unsigned int 	m_num_opclass;    
     dm_op_class_t m_op_class[EM_MAX_OPCLASS];
 	unsigned int	m_num_policy;
-	dm_policy_t	m_policy[EM_MAX_POLICIES];
+	dm_policy_t	*m_policy = NULL;
 	hash_map_t		*m_scan_result_map = NULL;
     hash_map_t  	*m_sta_map = NULL;
     hash_map_t      *m_sta_assoc_map = NULL;
@@ -1509,6 +1509,21 @@ public:
 	 * @note Ensure that the index is within the valid range of the policy array.
 	 */
 	dm_policy_t *get_policy(unsigned int index) { return &m_policy[index]; }
+
+	/**!
+	 * @brief Ensures the policy array is allocated before it is written to.
+	 *
+	 * Policies are used only on the controller, so this is invoked from the
+	 * controller-side write paths (decode/set/copy). The agent never writes
+	 * policies, so its m_policy stays NULL and no memory is allocated there.
+	 */
+	void alloc_policy_storage() {
+		if (m_policy == NULL) {
+			m_policy = new dm_policy_t[EM_MAX_POLICIES]();
+			printf("[MEM_OPT] policy array allocated: %zu bytes; sizeof(dm_easy_mesh_t)=%zu\n",
+				sizeof(dm_policy_t) * static_cast<size_t>(EM_MAX_POLICIES), sizeof(dm_easy_mesh_t));
+		}
+	}
     
 	/**!
 	 * @brief Retrieves a reference to the policy at the specified index.
@@ -1532,6 +1547,7 @@ public:
 	 * @returns true if at least one policy with the given type exists, false otherwise.
 	 */
 	bool has_policy_type(em_policy_id_type_t type) const {
+		if (m_policy == NULL) return false;
 		for (unsigned int i = 0; i < m_num_policy; i++) {
 			if (m_policy[i].m_policy.id.type == type) return true;
 		}

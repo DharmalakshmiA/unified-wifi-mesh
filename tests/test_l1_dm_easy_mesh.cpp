@@ -15375,6 +15375,7 @@ TEST(dm_easy_mesh_t, get_policy_valid_index)
     std::cout << "Entering " << testName << " test" << std::endl;
     dm_easy_mesh_t mesh;
     mesh.m_num_policy = 2;
+    mesh.alloc_policy_storage();
     mesh.m_policy[0].m_policy.id.type = em_policy_id_type_steering_local;
     mesh.m_policy[1].m_policy.id.type = em_policy_id_type_traffic_separation;
     unsigned int index = 1;
@@ -15448,6 +15449,7 @@ TEST(dm_easy_mesh_t, get_policy_by_ref_valid_index)
     std::cout << "Entering " << testName << " test" << std::endl;
     dm_easy_mesh_t mesh;
     mesh.m_num_policy = 1;
+    mesh.alloc_policy_storage();
     mesh.m_policy[0].m_policy.id.type = em_policy_id_type_steering_btm;
     unsigned int index = 0;
     std::cout << "Invoking get_policy_by_ref(" << index << ")" << std::endl;
@@ -18975,8 +18977,8 @@ TEST(dm_easy_mesh_t, set_policy_AddNewPolicy)
     std::cout << "Invoking set_policy with em_policy_id_type_steering_local policy type" << std::endl;
     mesh.set_policy(policy);
     EXPECT_EQ(mesh.m_num_policy, 1u);
-    mesh.deinit();
     EXPECT_STREQ(mesh.m_policy[0].m_policy.id.net_id, "net1");
+    mesh.deinit();
     std::cout << "Exiting set_policy_AddNewPolicy test" << std::endl;
 }
 
@@ -19023,8 +19025,8 @@ TEST(dm_easy_mesh_t, set_policy_ReplaceExistingPolicy)
     std::cout << "Invoking set_policy with interval as 123" << std::endl;
     mesh.set_policy(p2);
     EXPECT_EQ(mesh.m_num_policy, 1u);
-    mesh.deinit();
     EXPECT_EQ(mesh.m_policy[0].m_policy.interval, 123);
+    mesh.deinit();
     std::cout << "Exiting set_policy_ReplaceExistingPolicy test" << std::endl;
 }
 
