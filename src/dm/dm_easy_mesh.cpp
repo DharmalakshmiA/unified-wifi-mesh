@@ -104,8 +104,11 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
     }
 
     m_num_ap_mld = obj.m_num_ap_mld;
-    for (unsigned int i = 0; i < EM_MAX_AP_MLD; i++) {
-        m_ap_mld[i] = obj.m_ap_mld[i];
+    if (obj.m_ap_mld != NULL) {
+        alloc_ap_mld_storage();
+        for (unsigned int i = 0; i < EM_MAX_AP_MLD; i++) {
+            m_ap_mld[i] = obj.m_ap_mld[i];
+        }
     }
 
     m_num_assoc_sta_mld = obj.m_num_assoc_sta_mld;
@@ -3140,6 +3143,10 @@ void dm_easy_mesh_t::deinit()
         delete[] m_policy;
         m_policy = NULL;
     }
+	if (m_ap_mld != NULL) {
+        delete[] m_ap_mld;
+        m_ap_mld = NULL;
+    }
 	if (m_wifi_data != nullptr) {
         free(m_wifi_data);
         m_wifi_data = nullptr;
@@ -3439,6 +3446,8 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
 {
 
     em_ap_mld_info_t *target_mld = NULL;
+
+    alloc_ap_mld_storage();
 
     // Find existing MLD by MAC
     em_printfout("m_num_ap_mld %d", m_num_ap_mld);

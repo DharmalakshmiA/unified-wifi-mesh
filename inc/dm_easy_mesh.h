@@ -85,7 +85,7 @@ public:
     em_t *m_em;
     bool    m_colocated;
     unsigned int    m_num_ap_mld;
-    dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
+    dm_ap_mld_t     *m_ap_mld = NULL;
     bool    m_bsta_mld_present;
     dm_bsta_mld_t   m_bsta_mld;
     unsigned int    m_num_assoc_sta_mld;
@@ -1681,7 +1681,23 @@ public:
 	 *
 	 * @note Ensure that the index is within the valid range to avoid undefined behavior.
 	 */
-	dm_ap_mld_t *get_ap_mld(unsigned int index) { return &m_ap_mld[index]; }
+	dm_ap_mld_t *get_ap_mld(unsigned int index) { return (m_ap_mld == NULL) ? NULL : &m_ap_mld[index]; }
+
+	/**!
+	 * @brief Ensures the AP MLD array is allocated before it is written to.
+	 *
+	 * AP MLD entries exist only when multi-link devices are present, so the array
+	 * is lazily allocated from the write paths (decode/update/copy). When no MLD
+	 * is present, m_ap_mld stays NULL and no memory is allocated.
+	 */
+	void alloc_ap_mld_storage() {
+		if (m_ap_mld == NULL) {
+			m_ap_mld = new dm_ap_mld_t[EM_MAX_AP_MLD]();
+			printf("[MEM_OPT] ap_mld array allocated: %zu bytes; sizeof(dm_easy_mesh_t)=%zu\n",
+				sizeof(dm_ap_mld_t) * static_cast<size_t>(EM_MAX_AP_MLD), sizeof(dm_easy_mesh_t));
+		}
+	}
+
     
 	/**!
 	 * @brief Retrieves a reference to the AP MLD at the specified index.

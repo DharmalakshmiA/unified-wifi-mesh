@@ -2519,6 +2519,10 @@ int em_configuration_t::handle_ap_mld_config_tlv(unsigned char *buff, unsigned i
     em_printfout("No of AP MLDs: %d", ap_mld_conf->num_ap_mld);
     ap_mld = ap_mld_conf->ap_mld;
 
+    if (ap_mld_conf->num_ap_mld > 0) {
+        dm->alloc_ap_mld_storage();
+    }
+
     for (i = 0; i < ap_mld_conf->num_ap_mld; i++) {
         em_ap_mld_info_t* ap_mld_info = &dm->m_ap_mld[i].m_ap_mld_info;
         if (ap_mld_info == NULL) {
