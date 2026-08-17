@@ -3822,7 +3822,7 @@ dm_easy_mesh_t::dm_easy_mesh_t()
 
 dm_easy_mesh_t::~dm_easy_mesh_t()
 {
-
+    deinit();
 }
 
 
