@@ -196,22 +196,78 @@ void AlServiceAccessPoint::serviceAccessPointDataRequest(AlServiceDataUnit& mess
             }
 
 }
+// Executes service indication primitive (receive a message through the socket)
+AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
+    std::vector<unsigned char> payload;
+    int fragmentId = 0;
+    bool receivingFragments = true;
+    AlServiceDataUnit message;
+    constexpr size_t lengthPrefixSize = sizeof(uint32_t);
+    while (receivingFragments) {
+        std::vector<unsigned char> buffer(lengthPrefixSize, 0x00);
+        buffer.reserve(SOCKET_MTU);
 
-// Reports whether receiveBuffer already holds at least one complete
-// length-prefixed frame. Purely inspects the local buffer: it never calls
-// recv(), so the caller can safely use it to decide whether to drain another
-// already-received message without risking a block on a partial frame.
-bool AlServiceAccessPoint::hasBufferedMessage() const {
-    if (receiveBuffer.size() < sizeof(uint32_t)) {
-        return false;
+        // Receive data from the socket
+        recvExact(alDataSocketDescriptor, buffer.data(), lengthPrefixSize);
+        uint32_t packet_size = convert_bytes_into_u32(buffer);
+        if (packet_size < (PACKET_HEADER_SIZE - lengthPrefixSize) || packet_size > (SOCKET_MTU - lengthPrefixSize)) {
+             throw AlServiceException("Invalid packet size", PrimitiveError::InvalidMessage);
+        }
+        buffer.resize(lengthPrefixSize + packet_size);
+        recvExact(alDataSocketDescriptor, buffer.data() + lengthPrefixSize, packet_size);
+        // Deserialize the received fragment
+        AlServiceDataUnit fragment;
+        try {
+            fragment.deserialize(buffer);
+        } catch (const std::exception& e) {
+            throw AlServiceException("Failed to deserialize AlServiceDataUnit fragment", PrimitiveError::InvalidMessage);
+        }
+        #ifdef DEBUG_MODE
+        std::cout << "Received fragment " << static_cast<int>(fragment.getFragmentId())
+                  << " - Size: " << buffer.size() << " bytes, "
+                  << "isFragment: " << static_cast<int>(fragment.getIsFragment()) << ", "
+                  << "FragmentId: " << static_cast<int>(fragment.getFragmentId()) << ", "
+                  << "isLastFragment: " << static_cast<int>(fragment.getIsLastFragment()) << std::endl;
+        #endif
+        // Check if this is a single message (non-fragmented)
+        if (fragment.getIsFragment() == 0 && fragment.getIsLastFragment() == 1) {
+            #ifdef DEBUG_MODE
+            std::cout << "Received a non-fragmented message of size: " << buffer.size() << " bytes." << std::endl;
+            #endif
+            return fragment; // Return immediately, as no reassembly is needed
+        }
+        #ifdef DEBUG_MODE
+        // Fragmented message handling
+        std::cout << "Received fragment " << static_cast<int>(fragment.getFragmentId()) << " of the message." << std::endl;
+        #endif
+        // Check fragment ordering
+        if (fragment.getFragmentId() != fragmentId) {
+            throw AlServiceException("Fragment out of order", PrimitiveError::FragmentOutOfOrder);
+        }
+
+        // Append fragment payload to full payload
+        payload.insert(payload.end(), fragment.getPayload().begin(), fragment.getPayload().end());
+
+        // Store source and destination MAC addresses from the first fragment
+        if (fragmentId == 0) {
+            message.setSourceAlMacAddress(fragment.getSourceAlMacAddress());
+            message.setDestinationAlMacAddress(fragment.getDestinationAlMacAddress());
+        }
+
+        // Check if this is the last fragment
+        receivingFragments = (fragment.getIsLastFragment() == 0);
+        fragmentId++;
     }
-    uint32_t frameLen = (static_cast<uint32_t>(receiveBuffer[0]) << 24)
-                      | (static_cast<uint32_t>(receiveBuffer[1]) << 16)
-                      | (static_cast<uint32_t>(receiveBuffer[2]) << 8)
-                      |  static_cast<uint32_t>(receiveBuffer[3]);
-    return receiveBuffer.size() >= sizeof(uint32_t) + frameLen;
+
+    // Set the assembled payload on the AlServiceDataUnit object
+    message.setPayload(payload);
+    #ifdef DEBUG_MODE
+    std::cout << "Reassembled message received with total payload size: " << payload.size() << " bytes." << std::endl;
+    #endif
+    return message;
 }
 
+#if 0
 // Executes service indication primitive (receive a message through the socket)
 AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
     std::vector<unsigned char> payload;
@@ -220,17 +276,9 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
     AlServiceDataUnit message;
 
     while (receivingFragments) {
-        // The AL data socket is SOCK_STREAM (a byte stream with NO message
-        // boundaries), so a single recv() may return several coalesced frames
-        // (a slow first M1 followed by the 2nd/3rd), or only part of one frame.
-        //
-        // Strategy: keep the receiveBuffer as a running stream buffer. Read from
-        // the socket only until receiveBuffer holds one COMPLETE length-prefixed
-        // frame, then extract exactly that frame and KEEP any surplus bytes in
-        // receiveBuffer. Those surplus (already-received) messages can then be
-        // drained by the caller via hasBufferedMessage() without another recv(),
-        // and a partial trailing frame simply waits for more data next time.
+        std::vector<unsigned char> buffer(SOCKET_MTU, 0x00);
 
+<<<<<<< HEAD
         // Pull bytes from the socket until at least one full frame is buffered.
         while (!hasBufferedMessage()) {
             std::vector<unsigned char> chunk(SOCKET_MTU, 0x00); //SOCKET_MTU = 65535
@@ -240,26 +288,54 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
                     throw AlServiceException("Socket closed or connection reset", PrimitiveError::SocketClosed);
                 }
                 throw AlServiceException("Failed to receive message through Unix socket", PrimitiveError::IndicationFailed);
+=======
+        // Receive data from the socket
+        ssize_t bytesRead = recv(alDataSocketDescriptor, buffer.data(), buffer.size(), 0);
+        if (bytesRead <= 0) {
+            if (errno == EBADF || errno == ECONNRESET) {
+                throw AlServiceException("Socket closed or connection reset", PrimitiveError::SocketClosed);
+>>>>>>> parent of b5c1d88 (Read frame by frame)
             }
-            receiveBuffer.insert(receiveBuffer.end(), chunk.begin(), chunk.begin() + bytesRead);
-            std::cout << "[AL_SAP_RX] recv " << bytesRead << " bytes; receiveBuffer now "
-                      << receiveBuffer.size() << " bytes" << std::endl;
+            throw AlServiceException("Failed to receive message through Unix socket", PrimitiveError::IndicationFailed);
         }
+        buffer.resize(bytesRead);
 
-        // Extract exactly one complete frame from the front of the buffer and
-        // retain the rest (following coalesced messages) for later draining.
-        uint32_t frameLen = (static_cast<uint32_t>(receiveBuffer[0]) << 24)
-                          | (static_cast<uint32_t>(receiveBuffer[1]) << 16)
-                          | (static_cast<uint32_t>(receiveBuffer[2]) << 8)
-                          |  static_cast<uint32_t>(receiveBuffer[3]);
-        size_t totalFrameSize = sizeof(uint32_t) + frameLen;
-        std::vector<unsigned char> buffer(receiveBuffer.begin(),
-                                          receiveBuffer.begin() + totalFrameSize);
-        receiveBuffer.erase(receiveBuffer.begin(), receiveBuffer.begin() + totalFrameSize);
-        std::cout << "[AL_SAP_RX] extracted one frame of " << buffer.size()
-                  << " bytes; leftover in receiveBuffer=" << receiveBuffer.size()
-                  << " bytes (has_more_complete=" << (hasBufferedMessage() ? 1 : 0) << ")"
-                  << std::endl;
+	{
+            std::ostringstream hex_start, hex_end;
+            size_t head = std::min<size_t>(32, buffer.size());
+            for (size_t i = 0; i < head; ++i)
+                hex_start << std::hex << std::setw(2) << std::setfill('0') << (int)buffer[i] << " ";
+
+            // Also dump bytes around where a second length-prefix would start,
+            // IF the length field says one thing but bytesRead is bigger.
+            uint32_t declaredLen = 0;
+            if (buffer.size() >= 4) {
+                declaredLen = (static_cast<uint32_t>(buffer[0]) << 24)
+                            | (static_cast<uint32_t>(buffer[1]) << 16)
+                            | (static_cast<uint32_t>(buffer[2]) << 8)
+                            |  static_cast<uint32_t>(buffer[3]);
+            }
+            size_t expectedTotal = 4 + declaredLen;  // length field + its payload
+
+            std::cout << "[RAW_RECV] bytesRead=" << bytesRead
+                      << " declared_frame_len(from first 4 bytes)=" << declaredLen
+                      << " expected_total_for_ONE_msg=" << expectedTotal
+                      << " EXTRA_BYTES=" << (static_cast<long>(bytesRead) - static_cast<long>(expectedTotal))
+                      << std::endl;
+            std::cout << "[RAW_RECV] first32_hex=[ " << hex_start.str() << "]" << std::endl;
+
+            if (bytesRead > 0 && static_cast<size_t>(bytesRead) > expectedTotal && expectedTotal > 0) {
+                // Dump the bytes right at the boundary where the SECOND message's
+                // length prefix should begin, if coalescing occurred
+                size_t boundary = expectedTotal;
+                size_t dumpLen = std::min<size_t>(16, buffer.size() - boundary);
+                for (size_t i = boundary; i < boundary + dumpLen; ++i)
+                    hex_end << std::hex << std::setw(2) << std::setfill('0') << (int)buffer[i] << " ";
+                std::cout << "[RAW_RECV] *** COALESCING DETECTED *** bytes at boundary offset "
+                          << boundary << " (likely start of NEXT message): [ " << hex_end.str() << "]"
+                          << std::endl;
+            }
+        }
 
         // Deserialize the received fragment
         AlServiceDataUnit fragment;
@@ -270,16 +346,20 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
         }
 #ifdef DEBUG_MODE
         std::cout << "Received fragment " << static_cast<int>(fragment.getFragmentId())
-                  << " - Size: " << buffer.size() << " bytes, "
+                  << " - Size: " << bytesRead << " bytes, "
                   << "isFragment: " << static_cast<int>(fragment.getIsFragment()) << ", "
                   << "FragmentId: " << static_cast<int>(fragment.getFragmentId()) << ", "
                   << "isLastFragment: " << static_cast<int>(fragment.getIsLastFragment()) << std::endl;
 #endif
         // Check if this is a single message (non-fragmented)
         if (fragment.getIsFragment() == 0 && fragment.getIsLastFragment() == 1) {
+<<<<<<< HEAD
 #ifdef DEBUG_MODE
             std::cout << "Received a non-fragmented message of size: " << buffer.size() << " bytes." << std::endl;
 #endif
+=======
+            std::cout << "Received a non-fragmented message of size: " << bytesRead << " bytes." << std::endl;
+>>>>>>> parent of b5c1d88 (Read frame by frame)
             return fragment; // Return immediately, as no reassembly is needed
         }
         // Fragmented message handling
@@ -312,5 +392,5 @@ AlServiceDataUnit AlServiceAccessPoint::serviceAccessPointDataIndication() {
 #endif
     return message;
 }
-
+#endif
 
