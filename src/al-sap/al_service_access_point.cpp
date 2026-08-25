@@ -1,6 +1,29 @@
 #include "al_service_access_point.h"
 #include "al_service_utils.h"
 
+namespace {
+// Reads exactly len bytes from fd into buffer starting at offset, retrying on partial reads and EINTR.
+void recvExact(int fd, unsigned char *buffer, size_t len) {
+    size_t totalRead = 0;
+    while (totalRead < len) {
+        ssize_t bytesRead = recv(fd, buffer + totalRead, len - totalRead, 0);
+        if (bytesRead == 0) {
+            throw AlServiceException("Socket closed or connection reset", PrimitiveError::SocketClosed);
+        }
+        if (bytesRead < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            if (errno == EBADF || errno == ECONNRESET) {
+                throw AlServiceException("Socket closed or connection reset", PrimitiveError::SocketClosed);
+            }
+            throw AlServiceException("Failed to receive message through Unix socket", PrimitiveError::IndicationFailed);
+        }
+        totalRead += static_cast<size_t>(bytesRead);
+    }
+}
+}
+
 // Constructor: Connects to the Unix domain socket using the provided path --> moved from hardcoded to check in the unit test for socket creation
 AlServiceAccessPoint::AlServiceAccessPoint(const std::string &dataSocketPath, const std::string &controlSocketPath) : alDataSocketpath(dataSocketPath),
                                                                                                                       alControlSocketpath(controlSocketPath)
