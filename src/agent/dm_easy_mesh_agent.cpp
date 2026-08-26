@@ -67,7 +67,11 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     dm_easy_mesh_agent_t  dm;
     em_cmd_t *tmp;
 
+    em_printfout("[DL %s %d] sleep... Before translate\n", __func__, __LINE__); 
+    sleep(5);
 	dm.translate_onewifi_dml_data(reinterpret_cast<char *> (evt->u.raw_buff));
+    em_printfout("[DL %s %d] sleep... After translate\n", __func__, __LINE__); 
+    sleep(5);
 #ifdef AL_SAP
     // When AL_SAP is enabled the agent and controller AL MAC should be changed
     // to the mac obtained from al_sap instead of mac from dml
@@ -88,8 +92,9 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     //TODO: Check for multiple radios
     pcmd[num] = new em_cmd_dev_init_t(evt->params, dm);
     tmp = pcmd[num];
-
-    for (unsigned int i = 0; i < pcmd[num]->m_data_model.m_num_radios; i++) {
+    em_printfout("[DL %s %d] sleep\n", __func__, __LINE__); 
+    sleep(5);
+    	for (unsigned int i = 0; i < pcmd[num]->m_data_model.m_num_radios; i++) {
         em_printfout("dm num_role:%u for radio[%u]:%s\n", dm.get_radio_cap_info(i)->wifi6_cap.num_role,
                 i, util::mac_to_string(dm.get_radio_cap_info(i)->ruid.mac).c_str());
         em_printfout("num_role:%u\n", pcmd[num]->m_data_model.get_radio_cap_info(i)->wifi6_cap.num_role);
@@ -103,6 +108,8 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
         tmp = pcmd[num];
         num++;
     }
+    em_printfout("[DL %s %d] sleep\n", __func__, __LINE__); 
+    sleep(5);
 
 	return num;
 }
@@ -268,7 +275,8 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
     
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
-                
+    em_printfout("[DL %s %d] sleep... Before init\n", __func__, __LINE__);  
+    sleep(5);                
     if (webconfig_init(&config) != webconfig_error_none) {
         printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
         return ;
