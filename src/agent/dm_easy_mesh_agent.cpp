@@ -37,7 +37,7 @@
 #include <unistd.h>
 #include <unordered_map>
 #include <string>
-#include "memfns_wrap.h"
+#include "em_memwrap.h"
 #include "em_cmd_dev_init.h"
 #include "dm_easy_mesh_agent.h"
 #include <cjson/cJSON.h>
