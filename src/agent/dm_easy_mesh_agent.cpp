@@ -69,9 +69,11 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
 
     em_printfout("[DL %s %d] sleep... Before translate\n", __func__, __LINE__); 
     sleep(5);
+    saveHeapwalk("beforetranslate");
 	dm.translate_onewifi_dml_data(reinterpret_cast<char *> (evt->u.raw_buff));
     em_printfout("[DL %s %d] sleep... After translate\n", __func__, __LINE__); 
     sleep(5);
+    saveHeapwalk("aftertranslate");
 #ifdef AL_SAP
     // When AL_SAP is enabled the agent and controller AL MAC should be changed
     // to the mac obtained from al_sap instead of mac from dml
@@ -94,6 +96,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     tmp = pcmd[num];
     em_printfout("[DL %s %d] sleep\n", __func__, __LINE__); 
     sleep(5);
+    saveHeapwalk("aftercmd");
     	for (unsigned int i = 0; i < pcmd[num]->m_data_model.m_num_radios; i++) {
         em_printfout("dm num_role:%u for radio[%u]:%s\n", dm.get_radio_cap_info(i)->wifi6_cap.num_role,
                 i, util::mac_to_string(dm.get_radio_cap_info(i)->ruid.mac).c_str());
@@ -110,6 +113,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     }
     em_printfout("[DL %s %d] sleep\n", __func__, __LINE__); 
     sleep(5);
+    saveHeapwalk("aftercmdclone");
 
 	return num;
 }
@@ -277,13 +281,20 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
     config.apply_data =  webconfig_dummy_apply;
     em_printfout("[DL %s %d] sleep... Before init\n", __func__, __LINE__);  
     sleep(5);                
+    saveHeapwalk("beforeinit");
     if (webconfig_init(&config) != webconfig_error_none) {
         printf( "[%s]:%d Init WiFi Web Config  fail\n",__func__,__LINE__);
         return ;
                 
     }           
+    em_printfout("[DL %s %d] sleep... After init\n", __func__, __LINE__);  
+    sleep(5);                
+    saveHeapwalk("afterinit");
                 
     if ((webconfig_easymesh_decode(&config, str, &ext, &type)) == webconfig_error_none) {
+    	em_printfout("[DL %s %d] sleep After decode success\n", __func__, __LINE__);  
+    	sleep(5);                
+    	saveHeapwalk("afterdecode");
         printf("%s:%d Dev-Init decode success\n",__func__, __LINE__);
     } else {       
         printf("%s:%d Dev-Init decode fail\n",__func__, __LINE__);

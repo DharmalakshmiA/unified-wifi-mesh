@@ -1503,15 +1503,17 @@ void em_agent_t::input_listener()
 
     em_printfout("[DL %s %d] sleep... After rbus get\n", __func__, __LINE__);
     sleep(5);
-
+    saveHeapwalk("afterrbusget");
     g_agent.io_process(em_bus_event_type_dev_init, reinterpret_cast<unsigned char *>(data.raw_data.bytes), data.raw_data_len);
     em_printfout("[DL %s %d] sleep... After io_process done\n", __func__, __LINE__);
     sleep(5);
+     saveHeapwalk("afterioproc");
     
     free(data.raw_data.bytes);
 
     em_printfout("[DL %s %d] sleep... After raw data free done\n", __func__, __LINE__);
     sleep(5);
+     saveHeapwalk("afterioproc");
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_WEBCONFIG_DOC_DATA_NORTH, reinterpret_cast<void *>(&em_agent_t::onewifi_cb), NULL, 0) != 0) {
         em_printfout("Error: bus get failed");
