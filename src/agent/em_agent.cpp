@@ -40,6 +40,7 @@
 #include "em_orch_agent.h"
 #include "ec_util.h"
 #include "util.h"
+#include "memfns_wrap.h"
 
 #include <string>
 #include <vector>
