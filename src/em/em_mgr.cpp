@@ -56,6 +56,12 @@ void em_mgr_t::io_process(em_bus_event_type_t type, char *data, unsigned int len
 {
     em_event_t *evt;
     em_bus_event_t *bevt;
+     em_printfout("%s:%d: len updated as %u\n", __func__, __LINE__, len);
+   if (len > EM_MAX_EVENT_DATA_LEN) {
+        printf("%s:%d: event data len (%u) exceeds EM_MAX_EVENT_DATA_LEN (%u), dropping event type: %d\n",
+            __func__, __LINE__, len, EM_MAX_EVENT_DATA_LEN, type);
+        return;
+    }
 
     evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN));
     evt->type = em_event_type_bus;
@@ -79,6 +85,12 @@ void em_mgr_t::io_process(em_bus_event_type_t type, unsigned char *data, unsigne
     em_event_t *evt;
     em_bus_event_t *bevt;
 
+     em_printfout("%s:%d: len updated as %u\n", __func__, __LINE__, len);
+   if (len > EM_MAX_EVENT_DATA_LEN) {
+        printf("%s:%d: event data len (%u) exceeds EM_MAX_EVENT_DATA_LEN (%u), dropping event type: %d\n",
+            __func__, __LINE__, len, EM_MAX_EVENT_DATA_LEN, type);
+        return;
+    }
     evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t) + EM_MAX_EVENT_DATA_LEN));
     evt->type = em_event_type_bus;
     bevt = &evt->u.bevt;
@@ -102,6 +114,11 @@ bool em_mgr_t::io_process(em_event_t *evt)
     em_bus_event_t *bevt;
     bool should_wait;
 
+   if (len > EM_MAX_EVENT_DATA_LEN) {
+        printf("%s:%d: event data len (%u) exceeds EM_MAX_EVENT_DATA_LEN (%u), dropping event type: %d\n",
+            __func__, __LINE__, len, EM_MAX_EVENT_DATA_LEN, type);
+        return;
+    }
     bevt = &evt->u.bevt;
     //em_cmd_t::dump_bus_event(bevt);
 
