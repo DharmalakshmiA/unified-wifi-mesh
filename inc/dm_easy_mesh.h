@@ -1497,41 +1497,24 @@ public:
 	 *
 	 * @returns The number of policies as an unsigned integer.
 	 */
-        unsigned int get_num_policy() { return (m_policy_map != NULL) ? hash_map_count(m_policy_map) : 0; }
+	unsigned int get_num_policy() { return (m_policy_map != NULL) ? hash_map_count(m_policy_map) : 0; }
 
-	
-	/**!
+	/**
 	 * @brief Builds the hash map key for a policy from its identity.
 	 *
 	 * @param[in] id The policy identity (net_id, dev_mac, radio_mac, type).
 	 * @param[out] key Buffer to receive the key string.
 	 * @param[in] sz Size of the key buffer.
 	 */
-	static void get_policy_key(const em_policy_id_t& id, char *key, size_t sz) {
-		mac_addr_str_t dev_mac_str, radio_mac_str;
-		dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (id.dev_mac), dev_mac_str);
-		dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (id.radio_mac), radio_mac_str);
-		snprintf(key, sz, "%s@%s@%s@%d", id.net_id, dev_mac_str, radio_mac_str, id.type);
-	}
-	/**!
+	static void get_policy_key(const em_policy_id_t& id, char *key, size_t sz);
+
+	/**
 	 * @brief Checks whether this data model contains a policy of the given type.
 	 *
 	 * @param[in] type The policy ID type to search for.
 	 * @returns true if at least one policy with the given type exists, false otherwise.
 	 */
-	bool has_policy_type(em_policy_id_type_t type) const {
-		if (m_policy_map == NULL) {
-			return false;
-		}
-		dm_policy_t *policy = static_cast<dm_policy_t *> (hash_map_get_first(m_policy_map));
-		while (policy != NULL) {
-			if (policy->m_policy.id.type == type) {
-				return true;
-			}
-			policy = static_cast<dm_policy_t *> (hash_map_get_next(m_policy_map, policy));
-		}
-		return false;
-	}
+	bool has_policy_type(em_policy_id_type_t type) const;
 
 	/**!
 	 * @brief Finds a matching scan result based on the provided scan result ID.
