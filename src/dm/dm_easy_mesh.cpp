@@ -3265,6 +3265,10 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 
 	if (m_policy_map == NULL) {
 		m_policy_map = hash_map_create();
+		if (m_policy_map == NULL) {
+			em_printfout("Failed to create policy map\n");
+			return;
+		}
 	}
 
 	memcpy(policy.m_policy.id.dev_mac, m_device.m_device_info.intf.mac,sizeof(mac_address_t));
