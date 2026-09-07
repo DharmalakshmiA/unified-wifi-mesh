@@ -5832,7 +5832,11 @@ bus_error_t dm_easy_mesh_ctrl_t::policy_get_inner(char *event_name, raw_data_t *
         return bus_error_invalid_namespace;
     }
 
-    em_printfout("num_policy:%d", dm->get_num_policy());
+    em_printfout("num_policy:%u", dm->get_num_policy());
+    if (dm->m_policy_map == NULL) {
+        em_printfout("policy_map is NULL");
+        return bus_error_invalid_input;
+    }
     dm_policy_t *pi = NULL;
     for (dm_policy_t *p = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
          p != NULL;
