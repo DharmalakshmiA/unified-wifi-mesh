@@ -83,8 +83,8 @@ public:
     em_db_cfg_param_t	m_db_cfg_param;
     em_t *m_em;
     bool    m_colocated;
-    // Key: AL MAC + haul type (see get_ap_mld_key()).
-    hash_map_t      *m_ap_mld_map = NULL;
+    unsigned int    m_num_ap_mld;
+    dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
     bool    m_bsta_mld_present;
     dm_bsta_mld_t   m_bsta_mld;
     unsigned int    m_num_assoc_sta_mld;
@@ -1207,20 +1207,6 @@ public:
 	em_network_ssid_info_t *get_network_ssid_info_by_haul_type(em_haul_type_t haul_type);
 
 	/**!
-	 * @brief Reverse of get_network_ssid_info_by_haul_type(): resolves the haul type for a given SSID.
-	 *
-	 * Used by callers that decode AP MLD info off the wire (e.g. the AP MLD Configuration TLV),
-	 * where haul type is not carried on the wire. Callers that already know the haul type
-	 * (e.g. OneWifi, from the VAP name) should set it directly instead of calling this.
-	 *
-	 * @param[in] ssid The SSID to look up.
-	 * @param[out] haul_type Set to the resolved haul type on success.
-	 *
-	 * @returns true if a matching network SSID entry was found, false otherwise.
-	 */
-	bool get_haul_type_from_ssid(const ssid_t ssid, em_haul_type_t *haul_type);
-
-	/**!
      * @brief Checks whether the given SSID matches.
      *
      * This function determines whether the specified SSID matches
@@ -1595,9 +1581,9 @@ public:
 	/**!
 	 * @brief Retrieves the number of AP MLDs.
 	 *
-	 * @returns The number of AP MLDs currently stored in the AP MLD hash map.
+	 * @returns The number of AP MLDs.
 	 */
-	unsigned int get_num_ap_mld() { return (m_ap_mld_map != NULL) ? hash_map_count(m_ap_mld_map) : 0; }
+	unsigned int get_num_ap_mld() { return m_num_ap_mld; }
     
 	/**!
 	 * @brief Retrieves the number of AP MLDs.
@@ -1612,40 +1598,52 @@ public:
 	static unsigned int get_num_ap_mld(void *dm) { return (static_cast<dm_easy_mesh_t *>(dm))->get_num_ap_mld(); }
     
 	/**!
-	 * @brief Builds the AP MLD hash map key from the owning AL MAC and haul type.
+	 * @brief Sets the number of AP MLD.
 	 *
-	 * @param[in] al_mac The agent AL MAC address that owns this AP MLD.
-	 * @param[in] haul_type The haul type of this AP MLD's SSID.
-	 * @param[out] key Buffer to receive the key string.
-	 * @param[in] sz Size of the key buffer.
+	 * This function assigns the provided number to the member variable m_num_ap_mld.
+	 *
+	 * @param[in] num The number of AP MLD to set.
 	 */
-	static void get_ap_mld_key(mac_address_t al_mac, em_haul_type_t haul_type, char *key, size_t sz) {
-		mac_addr_str_t al_mac_str;
-		em_string_t haul_str;
-		dm_easy_mesh_t::macbytes_to_string(al_mac, al_mac_str);
-		dm_network_ssid_t::haul_type_to_string(haul_type, haul_str);
-		snprintf(key, sz, "%s@%s", al_mac_str, haul_str);
-	}
-
+	void set_num_ap_mld(unsigned int num) { m_num_ap_mld = num; }
+    
 	/**!
-	 * @brief Retrieves the first AP MLD in the AP MLD hash map.
+	 * @brief Sets the number of AP MLDs in the EasyMesh configuration.
 	 *
-	 * @returns A pointer to the first `dm_ap_mld_t` entry, or NULL if the map is empty/unallocated.
+	 * This function updates the number of Access Point Multi-Link Devices (AP MLDs) in the EasyMesh configuration.
+	 *
+	 * @param[in] dm Pointer to the EasyMesh configuration object.
+	 * @param[in] num The number of AP MLDs to set.
+	 *
+	 * @note Ensure that the `dm` pointer is valid and points to a properly initialized EasyMesh configuration object.
 	 */
-	dm_ap_mld_t *get_first_ap_mld() {
-		return (m_ap_mld_map != NULL) ? static_cast<dm_ap_mld_t *> (hash_map_get_first(m_ap_mld_map)) : NULL;
-	}
-
+	static void set_num_ap_mld(void *dm, unsigned int num) { (static_cast<dm_easy_mesh_t *>(dm))->set_num_ap_mld(num); }
+    
 	/**!
-	 * @brief Retrieves the AP MLD following the given one in the AP MLD hash map.
+	 * @brief Retrieves the access point MLD (Multi-Link Device) at the specified index.
 	 *
-	 * @param[in] ap_mld The current AP MLD entry, previously returned by get_first_ap_mld()/get_next_ap_mld().
+	 * This function returns a pointer to the access point MLD structure located at the given index.
 	 *
-	 * @returns A pointer to the next `dm_ap_mld_t` entry, or NULL if there is none.
+	 * @param[in] index The index of the access point MLD to retrieve.
+	 *
+	 * @returns A pointer to the `dm_ap_mld_t` structure at the specified index.
+	 *
+	 * @note Ensure that the index is within the valid range to avoid undefined behavior.
 	 */
-	dm_ap_mld_t *get_next_ap_mld(dm_ap_mld_t *ap_mld) {
-		return (m_ap_mld_map != NULL) ? static_cast<dm_ap_mld_t *> (hash_map_get_next(m_ap_mld_map, ap_mld)) : NULL;
-	}
+	dm_ap_mld_t *get_ap_mld(unsigned int index) { return &m_ap_mld[index]; }
+    
+	/**!
+	 * @brief Retrieves a reference to the AP MLD at the specified index.
+	 *
+	 * This function returns a reference to the AP MLD (Access Point Multi-Link Device) object
+	 * located at the given index within the internal storage.
+	 *
+	 * @param[in] index The index of the AP MLD to retrieve.
+	 *
+	 * @returns A reference to the AP MLD object at the specified index.
+	 *
+	 * @note Ensure that the index is within the valid range of stored AP MLDs to avoid undefined behavior.
+	 */
+	dm_ap_mld_t& get_ap_mld_by_ref(unsigned int index) { return m_ap_mld[index]; }
 
 	/**!
 	 * @brief Checks if BSTA MLD is present.

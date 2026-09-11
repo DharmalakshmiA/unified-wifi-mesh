@@ -8314,21 +8314,23 @@ bus_error_t dm_easy_mesh_ctrl_t::sta_tget_params(dm_easy_mesh_t *dm, const char 
 
 dm_ap_mld_t *dm_easy_mesh_ctrl_t::get_dm_ap_mld(dm_easy_mesh_t *dm, char *instance, bool is_num)
 {
-    dm_ap_mld_t *ap_mld;
+    dm_ap_mld_t *ap_mld = NULL;
 
     if (is_num) {
         unsigned int idx = static_cast<unsigned int>(atoi(instance) - 1);
-        unsigned int i = 0;
-        for (ap_mld = dm->get_first_ap_mld(); ap_mld != NULL; ap_mld = dm->get_next_ap_mld(ap_mld), i++) {
-            if (i == idx) {
-                return ap_mld;
-            }
+        if (idx >= dm->get_num_ap_mld()) {
+            return NULL;
         }
-        return NULL;
+        ap_mld = dm->get_ap_mld(idx);
+        return ap_mld;
     }
 
-    for (ap_mld = dm->get_first_ap_mld(); ap_mld != NULL; ap_mld = dm->get_next_ap_mld(ap_mld)) {
+    for (unsigned int i = 0; i < dm->get_num_ap_mld(); i++) {
         char mac_str[18];
+        ap_mld = dm->get_ap_mld(i);
+        if (ap_mld == NULL) {
+            continue;
+        }
         em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
         dm_easy_mesh_t::macbytes_to_string(const_cast<unsigned char *> (ami->mac_addr), mac_str);
         if (strcmp(instance, mac_str) == 0) {
@@ -8336,7 +8338,7 @@ dm_ap_mld_t *dm_easy_mesh_ctrl_t::get_dm_ap_mld(dm_easy_mesh_t *dm, char *instan
         }
     }
 
-    return NULL;
+    return ap_mld;
 }
 
 bus_error_t dm_easy_mesh_ctrl_t::apmld_get_inner(char *event_name, raw_data_t *p_data, bus_user_data_t *user_data)
@@ -8438,8 +8440,12 @@ bus_error_t dm_easy_mesh_ctrl_t::apmld_tget_params(dm_easy_mesh_t *dm, const cha
     bus_error_t rc = bus_error_success;
     dm_easy_mesh_ctrl_t *dm_ctrl = em_ctrl_t::get_em_ctrl_instance()->get_dm_ctrl();
 
-    unsigned int idx = 1;
-    for (dm_ap_mld_t *ap_mld = dm->get_first_ap_mld(); ap_mld != NULL; ap_mld = dm->get_next_ap_mld(ap_mld), idx++) {
+    for (unsigned int idx = 1; idx <= dm->get_num_ap_mld(); idx++) {
+        /* Get ap_mld dm object for numeric instance */
+        dm_ap_mld_t *ap_mld = dm->get_ap_mld(idx - 1);
+        if (ap_mld == NULL) {
+            continue;
+        }
         /* Get info structure for ap_mld object */
         em_ap_mld_info_t *ami = ap_mld->get_ap_mld_info();
 
