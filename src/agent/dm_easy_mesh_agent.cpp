@@ -1287,6 +1287,9 @@ int dm_easy_mesh_agent_t::refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_hand
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
         get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
         update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+    /* let the encoder fetch a fresh radios[]/num_radios/hal_cap snapshot via bus GET */
+    ext_data.bus_desc = desc;
+    ext_data.bus_hdl = bus_hdl;
 
     webconfig_t config;
     config.initializer = webconfig_initializer_onewifi;
