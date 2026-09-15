@@ -1208,13 +1208,31 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
     }
 
     if ((backhaul_obj = cJSON_GetObjectItem(policy_obj, "Backhaul BSS Configuration Policy")) != NULL) {
+        dm_policy_t agg_pol;
+        bool has_entry = false;
         for (i = 0; i < cJSON_GetArraySize(backhaul_obj); i++) {
             cJSON *backhaul_item_obj = cJSON_GetArrayItem(backhaul_obj, i);
             snprintf(parent, sizeof(em_long_string_t), "%s@%s@00:00:00:00:00:00@%d", net_id, dev_mac_str,
                         em_policy_id_type_backhaul_bss_config);
             dm_policy_t pol;
             pol.decode(backhaul_item_obj, parent, em_policy_id_type_backhaul_bss_config);
-            set_policy(pol);
+            // decode() resets the whole struct each call, so merge this item's single
+            // entry into the aggregate instead of overwriting it via repeated set_policy()
+            if (!has_entry) {
+                agg_pol = pol;
+                has_entry = true;
+            } else {
+                for (unsigned int b = 0; b < pol.m_policy.num_backhaul_bss_config; b++) {
+                    if (agg_pol.m_policy.num_backhaul_bss_config < EM_MAX_BSS_PER_RADIO) {
+                        unsigned int slot = agg_pol.m_policy.num_backhaul_bss_config;
+                        agg_pol.m_policy.backhaul_bss_config[slot] = pol.m_policy.backhaul_bss_config[b];
+                        agg_pol.m_policy.num_backhaul_bss_config++;
+                    }
+                }
+            }
+        }
+        if (has_entry) {
+            set_policy(agg_pol);
         }
     }
 

@@ -1018,8 +1018,6 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
     // operate directly on the live agent object instead of a local copy: a
     // shallow-copied dm here would share m_scan_result_map with *this, and its
     // destructor would later free memory *this still points to
-    em_printfout("[SCAN_DM_DEBUG] analyze_scan_result this=%p scan_result_map=%p",
-        static_cast<void*>(this), static_cast<void*>(m_scan_result_map));
     em_cmd_t *tmp;
     cJSON *json, *scanner_mac_obj;
 
