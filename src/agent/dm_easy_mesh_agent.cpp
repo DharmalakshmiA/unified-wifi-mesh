@@ -145,7 +145,6 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
         update_assoc_sta_mld_info(&dm.m_assoc_sta_mld[idx].m_assoc_sta_mld_info);
     }
 
-
     for ( i = 0; i < num_radios; i++) {
         evt->params.u.args.num_args = 1;
         dm_easy_mesh_t::macbytes_to_string(get_radio_by_ref(i).get_radio_interface_mac(), radio_str);
@@ -225,6 +224,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
         }
     }
 
+    dm.deinit();
     return static_cast<int> (num);
 }
 
@@ -791,6 +791,7 @@ int dm_easy_mesh_agent_t::analyze_sta_link_metrics(em_bus_event_t *evt, em_cmd_t
         num++;
     }
 
+    dm.deinit();
     return num;
 }
 
@@ -906,7 +907,7 @@ int dm_easy_mesh_agent_t::analyze_unassoc_sta_result(em_bus_event_t *evt, em_cmd
 
     em_unassoc_sta_metrics_rsp_t *rsp;
 
-    translate_and_decode_onewifi_subdoc(reinterpret_cast<char *>(evt->u.raw_buff), webconfig_subdoc_type_nasta_query, "Unassoc STA Metrics Response");
+    translate_and_decode_onewifi_subdoc((char *)evt->u.raw_buff, webconfig_subdoc_type_nasta_query, "Unassoc STA Metrics Response");
 
     json = cJSON_Parse((const char *)evt->u.raw_buff);
 
@@ -1114,6 +1115,7 @@ int dm_easy_mesh_agent_t::analyze_beacon_report(em_bus_event_t *evt, em_cmd_t *p
         num++;
     }
 
+    dm.deinit();
     return static_cast<int>(num);
 }
 
@@ -1240,6 +1242,7 @@ int dm_easy_mesh_agent_t::analyze_link_report(em_bus_event_t *evt, em_cmd_t *pcm
         num++;
     }
 
+    dm.deinit();
     return static_cast<int>(num);
 }
 
