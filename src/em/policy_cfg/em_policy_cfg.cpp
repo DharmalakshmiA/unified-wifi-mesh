@@ -76,7 +76,7 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
     }
 
 	metric = reinterpret_cast<em_metric_rprt_policy_t *> (tmp);
-	for (policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+	for (policy = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
          policy != NULL;
          policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
         if (policy->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
@@ -90,7 +90,7 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
         em_printfout("No matching policy found for metrics report policy TLV in cmd_dm, trying DM");
         policy = nullptr;
         dm_easy_mesh_t *fb_dm = get_data_model();
-        for (dm_policy_t *fb = static_cast<dm_policy_t *>(hash_map_get_first(fb_dm->m_policy_map));
+        for (dm_policy_t *fb = fb_dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(fb_dm->m_policy_map)) : NULL;
              fb != NULL;
              fb = static_cast<dm_policy_t *>(hash_map_get_next(fb_dm->m_policy_map, fb))) {
             if (fb->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
@@ -109,7 +109,7 @@ short em_policy_cfg_t::create_metrics_rep_policy_tlv(unsigned char *buff)
 
     unsigned int radio_cnt = 0;
 
-    for (policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+    for (policy = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
          policy != NULL;
          policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
 		if (policy->m_policy.id.type == em_policy_id_type_radio_metrics_rep) {
@@ -167,7 +167,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 		dm = get_data_model();
 	}
 	
-	for (policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+	for (policy = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
          policy != NULL;
          policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
 		if (policy->m_policy.id.type == em_policy_id_type_steering_local) {
@@ -196,7 +196,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 	tmp += sizeof(unsigned char) + sta_policy->num_sta*sizeof(mac_address_t);
 	len += sizeof(unsigned char) + sta_policy->num_sta*sizeof(mac_address_t);
 
-	for (policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+	for (policy = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
          policy != NULL;
          policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
 		if (policy->m_policy.id.type == em_policy_id_type_steering_btm) {
@@ -225,7 +225,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
 
     unsigned int num_radios = 0;
 
-    	for (policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+    	for (policy = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
              policy != NULL;
              policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
             if (policy->m_policy.id.type == em_policy_id_type_steering_param) {
@@ -248,7 +248,7 @@ short em_policy_cfg_t::create_steering_policy_tlv(unsigned char *buff)
     em_printfout("Steering policy: num_radios=%u",
         num_radios);
 
-	for (policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+	for (policy = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
          policy != NULL;
          policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
 		if (policy->m_policy.id.type == em_policy_id_type_steering_param) {
@@ -283,7 +283,7 @@ short em_policy_cfg_t::create_chan_scan_report_policy_tlv(unsigned char *buff)
         dm = get_data_model();
     }
 
-    for (dm_policy_t *policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+    for (dm_policy_t *policy = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
          policy != NULL;
          policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
         if (policy->m_policy.id.type != em_policy_id_type_channel_scan) {
@@ -314,7 +314,7 @@ short em_policy_cfg_t::create_unsucc_assoc_policy_tlv(unsigned char *buff)
         dm = get_data_model();
     }
 
-    for (dm_policy_t *policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+    for (dm_policy_t *policy = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
          policy != NULL;
          policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
         if (policy->m_policy.id.type != em_policy_id_type_unsuccess_assoc) {
@@ -411,7 +411,7 @@ short em_policy_cfg_t::create_vendor_policy_cfg_tlv(unsigned char *buff)
 
     dm = get_current_cmd()->get_data_model();
 
-    for (dm_policy_t *vpol = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+    for (dm_policy_t *vpol = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
          vpol != NULL;
          vpol = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, vpol))) {
         if (vpol->m_policy.id.type == em_policy_id_type_ap_metrics_rep) {
@@ -633,7 +633,7 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     // Zero or more Backhaul BSS Configuration TLVs (spec 17.2.66): one TLV per BSSID entry.
     dm_easy_mesh_t *bh_dm = is_set_policy ? cmd_dm : dm;
     em_printfout("Scanning %u policies for Backhaul BSS Config TLVs", bh_dm->get_num_policy());
-    for (dm_policy_t *bh_pol = static_cast<dm_policy_t *>(hash_map_get_first(bh_dm->m_policy_map));
+    for (dm_policy_t *bh_pol = bh_dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(bh_dm->m_policy_map)) : NULL;
          bh_pol != NULL;
          bh_pol = static_cast<dm_policy_t *>(hash_map_get_next(bh_dm->m_policy_map, bh_pol))) {
         if (bh_pol->m_policy.id.type != em_policy_id_type_backhaul_bss_config) {
@@ -663,7 +663,7 @@ int em_policy_cfg_t::send_policy_cfg_request_msg()
     // Zero or more QoS Management Policy TLVs (spec 17.2.92): one TLV per entry.
     dm_easy_mesh_t *qos_dm = is_set_policy ? cmd_dm : dm;
     em_printfout("Scanning %u policies for QoS Management TLVs", qos_dm->get_num_policy());
-    for (dm_policy_t *qos_pol = static_cast<dm_policy_t *>(hash_map_get_first(qos_dm->m_policy_map));
+    for (dm_policy_t *qos_pol = qos_dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(qos_dm->m_policy_map)) : NULL;
          qos_pol != NULL;
          qos_pol = static_cast<dm_policy_t *>(hash_map_get_next(qos_dm->m_policy_map, qos_pol))) {
         if (qos_pol->m_policy.id.type != em_policy_id_type_qos_mgt) {

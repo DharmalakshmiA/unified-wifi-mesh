@@ -3398,8 +3398,9 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
     dm.init();
 
     em_printfout("[SetPolicy] Received event. payload_len=%zu", strlen(subdoc->buff));
+#ifdef DEBUG_MODE
     em_printfout("[SetPolicy] Payload:\n%s", subdoc->buff);
-
+#endif
     do {
         dm.reset();
         policy_changed = 0;
@@ -3463,11 +3464,11 @@ int dm_easy_mesh_ctrl_t::analyze_set_policy(em_bus_event_t *evt, em_cmd_t *pcmd[
             }
 
             // Keep only changed policies in dm.m_policy_map
-            pol = static_cast<dm_policy_t *>(hash_map_get_first(dm.m_policy_map));
+            pol = dm.m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm.m_policy_map)) : NULL;
             while (pol != NULL) {
                 dm_policy_t *next = static_cast<dm_policy_t *>(hash_map_get_next(dm.m_policy_map, pol));
                 bool changed = true;
-                dm_policy_t *dp = static_cast<dm_policy_t *>(hash_map_get_first(dev_dm->m_policy_map));
+                dm_policy_t *dp = dev_dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dev_dm->m_policy_map)) : NULL;
                 while (dp != NULL) {
                     if (*dp == *pol) {
                         changed = false;
@@ -5077,7 +5078,7 @@ int dm_easy_mesh_ctrl_t::update_tables(dm_easy_mesh_t *dm)
     }
 
     if (dm->db_cfg_type_is_set(db_cfg_type_policy_list_update)) {
-        for (dm_policy_t *pol_ptr = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+        for (dm_policy_t *pol_ptr = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
              pol_ptr != NULL;
              pol_ptr = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, pol_ptr))) {
 			dm_easy_mesh_t::macbytes_to_string(pol_ptr->m_policy.id.dev_mac, dev_mac_str);
@@ -5681,7 +5682,7 @@ bus_error_t dm_easy_mesh_ctrl_t::device_get_inner(char *event_name, raw_data_t *
     } else if (strcmp(param, "LocalSteeringDisallowedSTAList") == 0) {
         //rc = dm_ctrl->raw_data_set(p_data, );
     } else if (strcmp(param, "BTMSteeringDisallowedSTAList") == 0) {
-        for (dm_policy_t *pi = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+        for (dm_policy_t *pi = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
              pi != NULL;
              pi = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, pi))) {
             if(pi->m_policy.id.type == em_policy_id_type_steering_btm) {

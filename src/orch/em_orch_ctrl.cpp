@@ -275,7 +275,7 @@ bool em_orch_ctrl_t::is_em_ready_for_orch_fini(em_cmd_t *pcmd, em_t *em)
                 dm_easy_mesh_t *cmd_dm = pcmd->get_data_model();
                 dm_easy_mesh_t *live_dm = em->get_data_model();
                 if (cmd_dm != NULL && live_dm != NULL) {
-                    for (dm_policy_t *pol = static_cast<dm_policy_t *>(hash_map_get_first(cmd_dm->m_policy_map));
+                    for (dm_policy_t *pol = cmd_dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(cmd_dm->m_policy_map)) : NULL;
                          pol != NULL;
                          pol = static_cast<dm_policy_t *>(hash_map_get_next(cmd_dm->m_policy_map, pol))) {
                         em_printfout("orch set_policy: committing policy type=%d to live_dm", pol->m_policy.id.type);
@@ -553,7 +553,7 @@ bool em_orch_ctrl_t::pre_process_orch_op(em_cmd_t *pcmd)
             // baseline and doesn't re-detect the same change as new.
             dm_easy_mesh_t *dev_dm = m_mgr->get_data_model(GLOBAL_NET_ID, dm->m_device.m_device_info.intf.mac);
             if (dev_dm != nullptr) {
-                for (dm_policy_t *pol = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+                for (dm_policy_t *pol = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
                      pol != NULL;
                      pol = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, pol))) {
                     dev_dm->set_policy(*pol);

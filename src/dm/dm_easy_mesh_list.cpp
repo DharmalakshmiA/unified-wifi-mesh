@@ -379,7 +379,7 @@ if (dm == NULL) {
     // Create default per-radio policies (radio_metrics_rep and steering_param) for newly discovered radios.
     if (dm != NULL) {
         bool has_radio_metrics = false, has_steering_param = false;
-        for (dm_policy_t *policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+        for (dm_policy_t *policy = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
              policy != NULL;
              policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
             if (memcmp(policy->m_policy.id.radio_mac, pradio->m_radio_info.intf.mac, sizeof(mac_address_t)) == 0) {
@@ -1220,7 +1220,7 @@ dm_policy_t *dm_easy_mesh_list_t::get_next_policy(dm_policy_t *policy)
 
 	dm = static_cast<dm_easy_mesh_t *> (hash_map_get_first(m_list));
     while (dm != NULL) {
-        ppolicy = static_cast<dm_policy_t *> (hash_map_get_first(dm->m_policy_map));
+        ppolicy = dm->m_policy_map ? static_cast<dm_policy_t *> (hash_map_get_first(dm->m_policy_map)) : NULL;
 		while (ppolicy != NULL) {
 			if (return_next == true) {
 				return ppolicy;

@@ -2048,7 +2048,7 @@ short em_t::create_def_8021q_settings_policy_tlv(unsigned char *buff)
         dm = get_data_model();
     }
 
-    for (dm_policy_t *policy = static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map));
+    for (dm_policy_t *policy = dm->m_policy_map ? static_cast<dm_policy_t *>(hash_map_get_first(dm->m_policy_map)) : NULL;
          policy != NULL;
          policy = static_cast<dm_policy_t *>(hash_map_get_next(dm->m_policy_map, policy))) {
         if (policy->m_policy.id.type != em_policy_id_type_default_8021q_settings) {
