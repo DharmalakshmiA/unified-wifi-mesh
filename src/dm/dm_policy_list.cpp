@@ -236,6 +236,10 @@ void dm_policy_list_t::update_list(const dm_policy_t& policy, dm_orch_type_t op)
 
         case dm_orch_type_db_update:
             ppolicy = get_policy(key);
+            if (ppolicy == NULL) {
+                em_printfout("update_list: policy not found for update, key=%s", key);
+                break;
+            }
             memcpy(&ppolicy->m_policy, &policy.m_policy, sizeof(em_policy_t));
             break;
 
