@@ -1223,10 +1223,12 @@ int dm_easy_mesh_t::decode_config_set_policy(em_subdoc_info_t *subdoc, const cha
                 has_entry = true;
             } else {
                 for (unsigned int b = 0; b < pol.m_policy.num_backhaul_bss_config; b++) {
-                    if (agg_pol.m_policy.num_backhaul_bss_config < EM_MAX_BSS_PER_RADIO) {
+                    if (agg_pol.m_policy.num_backhaul_bss_config < EM_MAX_BSSS) {
                         unsigned int slot = agg_pol.m_policy.num_backhaul_bss_config;
                         agg_pol.m_policy.backhaul_bss_config[slot] = pol.m_policy.backhaul_bss_config[b];
                         agg_pol.m_policy.num_backhaul_bss_config++;
+                    } else {
+                        em_printfout("decode_config_set_policy: backhaul BSS config overflow, dropping entry beyond %u", static_cast<unsigned int>(EM_MAX_BSSS));
                     }
                 }
             }
@@ -3297,6 +3299,10 @@ void dm_easy_mesh_t::set_policy(dm_policy_t policy)
 	ppolicy = static_cast<dm_policy_t *> (hash_map_get(m_policy_map, key));
 
 	if (ppolicy == NULL) {
+		if (hash_map_count(m_policy_map) >= EM_MAX_POLICIES) {
+			em_printfout("set_policy: maximum policy count (%u) reached, rejecting key=%s type=%d", static_cast<unsigned int>(EM_MAX_POLICIES), key, policy.m_policy.id.type);
+			return;
+		}
 		em_printfout("set_policy: inserting NEW policy key=%s type=%d", key, policy.m_policy.id.type);
 		ppolicy = new dm_policy_t(); //Heap allocation
 		hash_map_put(m_policy_map, strdup(key), ppolicy); //Load the address into the hashmap
