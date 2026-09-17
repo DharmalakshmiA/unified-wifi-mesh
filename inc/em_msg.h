@@ -99,6 +99,22 @@ public:
 
     
 	/**
+	 * @brief Parses a Profile TLV payload into a valid em_profile_type_t.
+	 *
+	 * Validates both the TLV length and the value range so an out-of-range byte
+	 * (e.g. corrupted/malformed input) can never be reinterpreted as an
+	 * em_profile_type_t, which is undefined behavior.
+	 *
+	 * @param[in] value Pointer to the TLV value bytes.
+	 * @param[in] value_len Length of the TLV value in bytes (host byte order).
+	 * @param[out] profile Set to the parsed profile only when the TLV is valid.
+	 *
+	 * @returns true if value_len is exactly 1 byte and the byte is a valid profile; false otherwise.
+	 */
+	static bool parse_profile_tlv(const unsigned char *value, uint16_t value_len, em_profile_type_t *profile);
+
+
+	/**
 	 * @brief Add a TLV to the message.
 	 *
 	 * This function appends a Type-Length-Value (TLV) to the provided buffer.
@@ -236,6 +252,8 @@ public:
 	 * @note Ensure that the mac pointer is valid and points to a properly allocated mac_address_t structure.
 	 */
 	bool get_bss_id(mac_address_t *mac);
+
+	bool get_sta_mac(mac_address_t *mac);
     
 	/**!
 	* @brief Retrieves the profile information.
@@ -249,7 +267,8 @@ public:
 	* @note Ensure that the profile pointer is valid before calling this function.
 	*/
 	bool get_profile(em_profile_type_t *profile);
-    
+	bool get_supported_service(em_supported_service_t *svc);
+
 	/**!
 	 * @brief Retrieves the frequency band.
 	 *

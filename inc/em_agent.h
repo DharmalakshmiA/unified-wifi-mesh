@@ -376,6 +376,7 @@ class em_agent_t : public em_mgr_t {
 	 */
 	bool send_action_frame(uint8_t dest_mac[ETH_ALEN], uint8_t *action_frame, size_t action_frame_len, uint8_t vap_idx, unsigned int frequency=0, unsigned int wait_time_ms=0);
 
+	void send_beacon_query(em_bus_event_t *evt);
 public:
 
     bus_handle_t m_bus_hdl;
@@ -500,8 +501,9 @@ public:
 	 * @return true if successful or if the file already exists, false otherwise.
 	 */
 	bool try_create_default_em_cfg(std::string interface);
+	void load_em_plus_cfg();
 
-    
+
 	/**!
 	* @brief Attempts to start DPP onboarding process.
 	*

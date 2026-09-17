@@ -25,7 +25,9 @@
 class em_mgr_t;
 class em_metrics_t {
 
-    
+    uint64_t m_cpu_idle_prev  = 0;
+    uint64_t m_cpu_total_prev = 1;
+
 	/**!
 	 * @brief Retrieves the data model instance.
 	 *
@@ -277,6 +279,10 @@ class em_metrics_t {
 	 */
 	int handle_beacon_metrics_response(unsigned char *buff, unsigned int len);
 
+
+	int handle_device_metrics_vendor_tlv(unsigned char *buf, unsigned int len);
+
+
   	/**!
 	 * @brief Handles the associated station traffic statistics.
 	 *
@@ -320,7 +326,31 @@ class em_metrics_t {
 	 *
 	 * @note Ensure that the buffer is properly allocated.
 	 */
-	int handle_ap_metrics_tlv(unsigned char *buff, bssid_t bssid);
+	int handle_ap_metrics_tlv(unsigned char *buff, unsigned int tlv_len, bssid_t bssid);
+
+	/**!
+	 * @brief Handles the AP Extended Metrics tlv.
+	 *
+	 * This function stores the unicast/multicast/broadcast byte counters into the BSS.
+	 *
+	 * @param[in] buff Pointer to the buffer containing AP extended metrics.
+	 * @param[in] tlv_len Length of the TLV value.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 */
+	int handle_ap_ext_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
+
+	/**!
+	 * @brief Handles the Radio Metrics tlv.
+	 *
+	 * This function stores the radio noise and transmit/receive metrics into the radio.
+	 *
+	 * @param[in] buff Pointer to the buffer containing radio metrics.
+	 * @param[in] tlv_len Length of the TLV value.
+	 *
+	 * @returns int Status code indicating success or failure.
+	 */
+	int handle_radio_metrics_tlv(unsigned char *buff, unsigned int tlv_len);
 
 	int handle_link_stats_alarm_rprt_tlv(unsigned char *buff, size_t len);
 
@@ -391,22 +421,23 @@ class em_metrics_t {
 	 */
 	short create_beacon_metrics_query_tlv(unsigned char *buff, mac_address_t sta_mac, bssid_t bssid);
     
+	short send_single_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
+
 	/**!
-	 * @brief Sends a beacon metrics query to a specified station.
-	 *
-	 * This function initiates a query to gather beacon metrics from a station identified by its MAC address.
-	 *
-	 * @param[in] sta_mac The MAC address of the station to which the beacon metrics query is sent.
-	 * @param[in] bssid The BSSID of the network to which the station is connected.
-	 *
-	 * @returns A short integer indicating the success or failure of the operation.
-	 * @retval 0 on success.
-	 * @retval -1 on failure.
-	 *
-	 * @note Ensure that the station is within range and the MAC address is correct before sending the query.
+	 * @brief Sends a 1905 ACK for a received Beacon Metrics Response.
+	 * @param[in] msg_id The message ID from the CMDU being acknowledged.
 	 */
-	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
-    
+	int send_beacon_metrics_ack(unsigned short msg_id);
+
+	/**!
+	 * @brief Sends a 1905 ACK to the controller after receiving a Beacon Metrics Query.
+	 *        Includes an Error Code TLV (Reason 0x02) if the STA is not associated.
+	 * @param[in] sta_mac STA MAC address from the query.
+	 * @param[in] msg_id  Message ID from the CMDU being acknowledged.
+	 * @param[in] reason  0 = success; 0x02 = STA not associated with any BSS.
+	 */
+	int send_beacon_metrics_query_ack(mac_address_t sta_mac, unsigned short msg_id, unsigned char reason);
+
 	/**!
 	 * @brief Sends a beacon metrics response.
 	 *
@@ -655,6 +686,62 @@ class em_metrics_t {
         */
         void clear_unassoc_sta_query_msg_id() { m_unassoc_sta_query_msg_id = 0; }	
 
+	/**!
+	 * @brief Retrieves the system uptime using a monotonic clock.
+	 *
+	 * @param[out] ts Reference to a timespec structure to store the uptime.
+	 *
+	 * @returns true on success, false on failure.
+	 */
+	bool devicemetrics_get_uptime(struct timespec &ts);
+
+	/**!
+	 * @brief Retrieves the CPU temperature from the thermal sysfs interface.
+	 *
+	 * @param[out] cpu_temp Reference to store the CPU temperature in degrees Celsius.
+	 *
+	 * @returns true on success, false if the thermal zone file cannot be read.
+	 *
+	 * @note Not all platforms expose CPU temperature via sysfs. Returns 0 on unsupported platforms.
+	 */
+	bool devicemetrics_get_cpu_temp(uint8_t &cpu_temp);
+
+	/**!
+	 * @brief Retrieves the current CPU load percentage.
+	 *
+	 * Calculates CPU load as the delta between two consecutive reads of /proc/stat.
+	 *
+	 * @param[out] cpu_load Reference to store the CPU load as a percentage (0-100).
+	 *
+	 * @returns true on success, false if /proc/stat cannot be read or parsed.
+	 */
+	bool devicemetrics_get_cpu_load(uint8_t &cpu_load);
+
+	/**!
+	 * @brief Retrieves memory usage information from /proc/meminfo.
+	 *
+	 * @param[out] memtotal Reference to store total memory in kB.
+	 * @param[out] memfree  Reference to store free memory in kB.
+	 * @param[out] memcached Reference to store cached memory (Cached + Buffers) in kB.
+	 *
+	 * @returns true on success, false if /proc/meminfo cannot be read or required fields are missing.
+	 */
+	bool devicemetrics_get_meminfo(int32_t &memtotal, int32_t &memfree, int32_t &memcached);
+
+	/**!
+	 * @brief Creates a vendor-specific device metrics TLV.
+	 *
+	 * Populates a vendor TLV with device metrics including uptime, CPU load, CPU temperature,
+	 * memory usage, and per-radio information.
+	 *
+	 * @param[out] buff Pointer to the buffer where the TLV will be stored.
+	 *
+	 * @returns short The size of the TLV created, or 0 on failure.
+	 *
+	 * @note Ensure that the buffer is large enough to hold the TLV.
+	 */
+	short create_vendor_device_metrics_tlv(unsigned char *buff);
+
 public:
 
 	/**!
@@ -671,6 +758,8 @@ public:
 	 * @note Ensure that the buffer is large enough to hold the TLV data.
 	 */
 	virtual short create_assoc_sta_traffic_stats_tlv(unsigned char *buff, const dm_sta_t *const sta);
+
+	short send_beacon_metrics_query(mac_address_t sta_mac, bssid_t bssid);
 
 	/**!
 	 * @brief Retrieves the manager instance.

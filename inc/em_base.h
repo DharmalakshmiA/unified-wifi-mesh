@@ -30,6 +30,7 @@ extern "C"
 #endif
 
 #include "wifi_webconfig.h"
+#include <time.h>
 #include <openssl/evp.h>
 #include <uuid/uuid.h>
 #include <sys/socket.h>
@@ -105,6 +106,7 @@ extern "C"
 #define EM_MAX_CLIENT_ASSOC_CTRL_REQ_TX_THRESH  5
 #define MAX_STA_TO_DISASSOC		32
 #define EM_MAX_DB_CFG_CRITERIA	32
+#define MAX_STA_LIST 20
 
 #define EM_CLI_MAX_ARGS 5
 
@@ -236,7 +238,18 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 #define EM_KEY_FILE	"/nvram//test_cert.key"
 
 #define EM_CFG_FILE "/nvram/EasymeshCfg.json"
+#define EM_PLUS_FILE "/nvram/EasymeshPlus.json"
 #define EM_VENDOR_OUI_SIZE 3
+
+#define CPU_TEMP_FILE "/sys/devices/virtual/thermal/thermal_zone0/temp"
+#define MEMINFO_FILE "/proc/meminfo"
+#define STAT_FILE "/proc/stat"
+#define STAT_CPU_TXT "cpu "
+#define MEMCACHED_TXT "Cached:"
+#define MEMTOTAL_TXT "MemTotal:"
+#define MEMFREE_TXT "MemFree:"
+#define MEMBUFFER_TXT "Buffers:"
+#define STAT_IDLE_IND 3
 
 #define EM_MAX_SSID_LEN                33 
 #define EM_MAX_WIFI_PASSWORD_LEN       65 
@@ -340,6 +353,34 @@ static const mac_address_t EM_GLOBAL_MAC_ADDRESS = {0xff, 0xff, 0xff, 0xff, 0xff
 /* Min supported HE-MCS and NSS Set field's length */
 #define EM_MIN_HE_MCS_LEN            4
 
+/* 802.11 (re)assoc request frame body and HE Capabilities element layout */
+#define EM_ASSOC_FIXED_FIELDS_LEN    4   /* capab_info(2) + listen_interval(2) */
+#define EM_REASSOC_FIXED_FIELDS_LEN  (EM_ASSOC_FIXED_FIELDS_LEN + 6)  /* + current_ap(6) */
+#define EM_IE_HDR_LEN                2   /* element id + length */
+#define EM_EID_SSID                  0
+#define EM_EID_SUPP_RATES            1
+#define EM_EID_EXTENSION             255
+#define EM_EXT_EID_HE_CAPS           35
+#define EM_HE_MAC_CAPS_LEN           6
+#define EM_HE_PHY_CAPS_LEN           11
+#define EM_HE_CAPS_MIN_LEN           (1 + EM_HE_MAC_CAPS_LEN + EM_HE_PHY_CAPS_LEN + EM_MIN_HE_MCS_LEN)
+/* HE MAC capabilities bits (octet 0) */
+#define EM_HE_MAC0_TWT_REQ           0x02
+#define EM_HE_MAC0_TWT_RESP          0x04
+/* HE PHY capabilities bits */
+#define EM_HE_PHY0_CHWIDTH_160_5G    0x08          /* channel width set: 160 MHz in 5 GHz */
+#define EM_HE_PHY0_CHWIDTH_8080_5G   0x10          /* channel width set: 160/80+80 MHz in 5 GHz */
+#define EM_HE_PHY2_UL_MUMIMO_MASK    0xc0          /* full/partial bandwidth UL MU-MIMO */
+#define EM_HE_PHY3_SU_BEAMFORMER     0x80
+#define EM_HE_PHY4_SU_BEAMFORMEE     0x01
+#define EM_HE_PHY4_MU_BEAMFORMER     0x02
+#define EM_HE_PHY4_BFEE_STS_LE80_MASK  (0x07 << 2) /* beamformee STS <= 80 MHz */
+#define EM_HE_PHY4_BFEE_STS_GT80_MASK  (0x07 << 5) /* beamformee STS > 80 MHz */
+
+//CACR assoc control values
+#define ASSOC_CONTROL_BLOCK 0x00
+#define ASSOC_CONTROL_UNBLOCK 0x01
+
 typedef char em_interface_name_t[32];
 typedef unsigned char em_nonce_t[16];
 typedef unsigned char em_dh5_key_t[192];    // because this is DH group 5 (1536 bits)
@@ -415,9 +456,11 @@ typedef struct {
 typedef unsigned char em_enum_type_t;
 
 typedef enum {
-    em_service_type_ctrl,
-    em_service_type_agent,
-    em_service_type_cli,
+    em_service_type_ctrl         = 0x00,
+    em_service_type_agent        = 0x01,
+    em_service_type_cli          = 0x02,
+    em_service_type_emplus_ctrl  = 0xA0,
+    em_service_type_emplus_agent = 0xA1,
     em_service_type_none
 } em_service_type_t;
 
@@ -426,6 +469,7 @@ typedef enum {
     em_profile_type_1,
     em_profile_type_2,
     em_profile_type_3,
+    em_profile_type_max,
 } em_profile_type_t;
 
 typedef enum {
@@ -852,6 +896,7 @@ typedef enum {
 } em_tlv_type_t;
 
 typedef enum {
+    em_tlv_type_device_metrics = 0x0004,
     em_tlv_type_radio_capability = 0x0013,
 } em_vendor_airties_tlv_type_t;
 
@@ -1069,8 +1114,8 @@ typedef struct {
     bssid_t 	bssid;
     unsigned char assoc_control;
     unsigned short validity_period;
-    unsigned char count;
-    mac_address_t sta_mac;
+    unsigned char sta_count;
+    mac_address_t sta_list[MAX_STA_LIST];
 }__attribute__((__packed__)) em_client_assoc_ctrl_req_t;
 
 typedef struct {
@@ -1139,7 +1184,7 @@ typedef struct {
 typedef struct {
     unsigned char ap_channel_rprt_len;
     unsigned char ap_channel_op_class;
-    unsigned char ap_channel_list[6];
+    unsigned char ap_channel_list[EM_MAX_CHANNELS_IN_LIST];
 }__attribute__((__packed__)) em_beacon_ap_channel_rprt_t;
 
 typedef struct {
@@ -1156,8 +1201,7 @@ typedef struct {
     unsigned char ssid_len;
     ssid_t ssid;
     unsigned char num_ap_channel_rprt;
-    em_beacon_ap_channel_rprt_t ap_channel_rprt[6];
-    unsigned char num_element_id;
+    em_beacon_ap_channel_rprt_t ap_channel_rprt[EM_MAX_NEIGHBORS];
     em_beacon_element_list_t element_list;
 }__attribute__((__packed__)) em_beacon_metrics_query_t;
 
@@ -1740,6 +1784,22 @@ typedef struct {
 }__attribute__((__packed__)) em_radio_capability_vendor_t;
 
 typedef struct {
+        unsigned char radio_uid[6];
+        unsigned char radio_temp;
+} __attribute__((__packed__)) em_radio_metrics_t;
+
+typedef struct {
+    uint32_t uptime;
+    unsigned char cpu_load;
+    unsigned char cpu_temp;
+    uint32_t total_mem;
+    uint32_t free_mem;
+    uint32_t cached_mem;
+    unsigned char radio_num;
+    em_radio_metrics_t radios[0];
+}__attribute__((__packed__)) em_radio_device_metrics_vendor_t;
+
+typedef struct {
     unsigned char  destination;    
     mac_address_t  specific_neigh;
     unsigned char  link_metrics_type; 
@@ -2279,7 +2339,6 @@ typedef enum {
     em_state_agent_client_cap_report,
     em_state_agent_sta_link_metrics_pending,
     em_state_agent_steer_btm_res_pending,
-    em_state_agent_beacon_report_pending,
     em_state_agent_link_quality_report_pending,
 
     em_state_ctrl_unconfigured = 0x100,
@@ -2313,9 +2372,13 @@ typedef enum {
     em_state_ctrl_avail_spectrum_inquiry_pending,
     em_state_ctrl_bsta_cap_pending,
     em_state_ctrl_topo_publish_pending,
-    em_state_ctrl_unassoc_sta_link_metrics_pending, 
     em_state_ctrl_topo_published,
+    em_state_ctrl_unassoc_sta_link_metrics_pending,
+    em_state_ctrl_client_assoc_ctrl_req_pending,
 
+    //common states
+    em_state_beacon_report_pending,
+    em_state_beacon_report_complete,
     em_state_max,
 } em_state_t;
 
@@ -2369,6 +2432,7 @@ typedef enum {
     em_cmd_type_get_link_quality_report,
     em_cmd_type_unassoc_sta_query,
     em_cmd_type_unassoc_sta_result,
+    em_cmd_type_client_assoc_ctrl_req,
 
     em_cmd_type_max,
 } em_cmd_type_t;
@@ -2497,6 +2561,15 @@ typedef struct {
     em_small_string_t    primary_device_type;
     em_small_string_t    secondary_device_type;
     ieee_1905_security_t    sec_1905;
+    
+    uint8_t is_emplus_agent;
+
+    uint32_t uptime;
+    uint32_t total_mem;
+    uint32_t free_mem;
+    uint32_t cached_mem;
+    unsigned char cpu_load;
+    unsigned char cpu_temp;
 } em_device_info_t;
 
 typedef struct {
@@ -2605,6 +2678,7 @@ typedef struct {
     unsigned char	frame_body[EM_MAX_FRAME_BODY_LEN];
     unsigned int    num_vendor_infos;
     bool            multi_band_cap;
+    time_t          beacon_query_sent_time;
     unsigned int    num_beacon_meas_report;
     unsigned int    beacon_report_len;
     unsigned char   beacon_report_elem[EM_MAX_BEACON_MEASUREMENT_LEN];
@@ -2756,7 +2830,7 @@ typedef struct {
 
 typedef struct {
     mac_address_t  bssid;
-    mac_address_t  mac_addr;
+    mac_address_t  link_addr;
 } em_affiliated_sta_info_t;
 
 typedef struct {
@@ -2839,6 +2913,7 @@ typedef struct {
     unsigned char srg_bss_color_bitmap[8];
     unsigned char srg_partial_bssid_bitmap[8];
     unsigned char neigh_bss_color_in_use_bitmap[8];
+    unsigned char radio_temp;
 } em_radio_info_t;
 
 typedef struct {
@@ -3054,6 +3129,7 @@ typedef enum {
 	em_bus_event_type_channel_scan_params,
     em_bus_event_type_get_mld_config,
     em_bus_event_type_mld_reconfig,
+    em_bus_event_type_beacon_query,
     em_bus_event_type_beacon_report,
     em_bus_event_type_recv_wfa_action_frame,
     em_bus_event_type_recv_gas_frame,
@@ -3083,6 +3159,7 @@ typedef struct {
     mac_address_t	mac;
     em_long_string_t	net_id;
     int sz;
+    uint8_t is_emplus_agent;
 } __attribute__((__packed__)) em_commit_info_t;
 
 typedef enum {
@@ -3162,6 +3239,7 @@ typedef enum {
     dm_orch_type_link_quality_report,
     dm_orch_type_unassoc_sta_link_req_query,
     dm_orch_type_unassoc_sta_result,
+    dm_orch_type_client_assoc
 
 } dm_orch_type_t;
 
@@ -3287,6 +3365,14 @@ typedef struct {
 } em_cmd_btm_report_params_t;
 
 typedef struct {
+    bssid_t 	bssid;
+    unsigned char assoc_control;
+    unsigned short validity_period;
+    unsigned char sta_count;
+    mac_address_t sta_list[MAX_STA_LIST];
+}em_cmd_client_assoc_params_t;
+
+typedef struct {
     mac_address_t	sta_mac;
     bssid_t	bssid;
     unsigned int disassoc_time;
@@ -3343,15 +3429,19 @@ typedef struct {
 } em_cmd_unassoc_sta_query_params_t;
 
 typedef em_scan_params_t em_cmd_scan_params_t;
+typedef em_beacon_metrics_query_t em_cmd_beacon_metrics_param_t;
+
 typedef struct {
     union {
         em_cmd_args_t	args;
         em_cmd_steer_params_t	steer_params;
         em_cmd_btm_report_params_t  btm_report_params;
         em_cmd_disassoc_params_t	disassoc_params;
+        em_cmd_client_assoc_params_t   client_assoc_params;
 		em_cmd_scan_params_t	scan_params;
         em_cmd_ap_metrics_rprt_params_t ap_metrics_params;
         em_cmd_unassoc_sta_query_params_t unassoc_sta_query_params;
+        em_cmd_beacon_metrics_param_t beacon_metrics_params;
     } u;
 	em_network_node_t *net_node;
 } em_cmd_params_t;
@@ -3530,9 +3620,8 @@ typedef enum {
     tag_vht_capability = 191,
     tag_vendor_specific = 221,
     tag_extended_tags = 255,
-    //he
-    //he_6ghz
-    //eht
+    tag_ext_he_cap = 35,
+    tag_ext_eht_cap = 108,
     //other tags can be added here
 } tag_type_t;
 
@@ -3650,7 +3739,7 @@ typedef struct {
     unsigned int num_qos_mgt;
     em_qos_mgt_policy_t qos_mgt[EM_MAX_STA_PER_AGENT];
     unsigned int num_backhaul_bss_config;
-    em_backhaul_bss_config_policy_t backhaul_bss_config[EM_MAX_BSS_PER_RADIO];
+    em_backhaul_bss_config_policy_t backhaul_bss_config[EM_MAX_BSSS]; // device-wide, not per-radio
     em_link_stats_alarm_cfg_t link_stats_alarm_cfg;
     em_client_filters_cfg_t client_filters;
 } em_policy_t;
