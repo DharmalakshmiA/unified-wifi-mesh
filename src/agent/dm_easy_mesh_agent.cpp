@@ -66,7 +66,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
     int num = 0;
     dm_easy_mesh_agent_t  dm;
     em_cmd_t *tmp;
-
+    dm.init();
 	dm.translate_onewifi_dml_data(reinterpret_cast<char *> (evt->u.raw_buff));
 #ifdef AL_SAP
     // When AL_SAP is enabled the agent and controller AL MAC should be changed
@@ -103,7 +103,7 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
         tmp = pcmd[num];
         num++;
     }
-
+    dm.deinit();
 	return num;
 }
 
