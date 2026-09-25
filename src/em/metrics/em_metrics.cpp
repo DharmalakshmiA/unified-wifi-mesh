@@ -2906,7 +2906,12 @@ void em_metrics_t::process_msg(unsigned char *data, unsigned int len)
             break;
 
         case em_msg_type_ap_metrics_rsp:
-            handle_ap_metrics_response(data, len);
+            em_radios.clear();
+            get_mgr()->get_all_em_for_al_mac(hdr->src, em_radios);
+            for (auto &em : em_radios) {
+                em->handle_ap_metrics_response(data, len);
+                break;
+            }
             break;
         case em_msg_type_topo_vendor:
             handle_vendor_msg(data, len);
