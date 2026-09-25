@@ -21,7 +21,8 @@
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
 
-::testing::GTEST_FLAG(filter) =
+    if (::testing::GTEST_FLAG(filter) == "*") {
+        ::testing::GTEST_FLAG(filter) =
     "-dm_ap_mld_t_Test.DecodeValidJsonObjectWithNullParentID:"
     "dm_ap_mld_t_Test.DecodeNullJsonObjectWithValidParentID:"
     "dm_ap_mld_t_Test.DecodeInvalidJsonObjectWithValidParentID:"
@@ -714,6 +715,7 @@ int main(int argc, char **argv) {
     "ec_manager_t.process_direct_encap_dpp_msg_enrollee_null_src_mac:"
     "em_ctrl_t_Test.input_listen_default:"
     "em_ctrl_t_Test.delete_nodes_valid:"
-    "em_ctrl_t_Test.delete_node_existing_ieee80211n_24";
+        "em_ctrl_t_Test.delete_node_existing_ieee80211n_24";
+    }
     return RUN_ALL_TESTS();
 }
