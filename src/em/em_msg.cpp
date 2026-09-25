@@ -86,20 +86,114 @@ bool em_msg_t::get_al_mac_address(unsigned char *mac)
     return false;
 }
 
+bool em_msg_t::get_supported_service(em_supported_service_t *svc)
+{
+    unsigned int tlv_len;
+    if (!svc) {
+        return false;
+    }
+
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(m_buff);
+    unsigned int len = m_len;
+    while ((len >= sizeof(em_tlv_t)) && (tlv->type != em_tlv_type_eom)) {
+        tlv_len = ntohs(tlv->len);
+        if (len < sizeof(em_tlv_t) + tlv_len) {
+            return false;
+        }
+        if (tlv->type == em_tlv_type_supported_service) {
+             if (tlv_len < 2) {
+                 return false;
+            }
+            unsigned int copy_len = tlv_len - 1;
+            if (copy_len > EM_MAX_SERVICE) {
+                copy_len = EM_MAX_SERVICE;
+            }
+            svc->num = tlv->value[0];
+            if (svc->num > copy_len) {
+                svc->num = static_cast<unsigned char>(copy_len);
+            }
+            memset(svc->service, 0, EM_MAX_SERVICE);
+            memcpy(svc->service, &tlv->value[1], svc->num);
+            return true;
+        }
+        len -= static_cast<unsigned int>(sizeof(em_tlv_t) + tlv_len);
+        tlv = reinterpret_cast<em_tlv_t *>(reinterpret_cast<unsigned char *>(tlv) + sizeof(em_tlv_t) + tlv_len);
+    }
+    return false;
+}
+
+bool em_msg_t::parse_profile_tlv(const unsigned char *value, uint16_t value_len, em_profile_type_t *profile)
+{
+    if ((value == nullptr) || (profile == nullptr)) {
+        em_printfout("Error: Invalid Profile TLV input: value=%p profile=%p", static_cast<const void *>(value), static_cast<void *>(profile));
+        return false;
+    }
+
+    // Multi-AP Profile TLV may be encoded as 1 byte (legacy) or 4 bytes (profile + 3 reserved bytes).
+    if ((value_len != sizeof(unsigned char)) && (value_len != 4U)) {
+        em_printfout("Error: Invalid Profile TLV length %u", static_cast<unsigned int>(value_len));
+        return false;
+    }
+
+    const unsigned char raw_profile = value[0];
+    if (raw_profile >= static_cast<unsigned char>(em_profile_type_max)) {
+        em_printfout("Error: Invalid Profile TLV value %u", static_cast<unsigned int>(raw_profile));
+        return false;
+    }
+
+    *profile = static_cast<em_profile_type_t>(raw_profile);
+    return true;
+}
+
 bool em_msg_t::get_profile(em_profile_type_t *profile)
 {
     em_tlv_t    *tlv;
     unsigned int len;
 
+    if (profile == nullptr) {
+        em_printfout("Error: get_profile called with null profile");
+        return false;
+    }
+    *profile = em_profile_type_reserved;
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_profile) {
-            memcpy(profile, tlv->value, htons(tlv->len));
-            return true;
+            return parse_profile_tlv(tlv->value, ntohs(tlv->len), profile);
         }
 
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
+    }
+
+    return false;
+}
+
+bool em_msg_t::get_sta_mac(mac_address_t *mac)
+{
+    em_tlv_t    *tlv;
+    unsigned int len;
+
+    tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
+    while ((tlv->type != em_tlv_type_eom) && (len >= sizeof(em_tlv_t))) {
+        if (tlv->type == em_tlv_type_client_info) {
+            memcpy(mac, tlv->value + sizeof(mac_address_t), sizeof(mac_address_t));
+            return true;
+        } else if (tlv->type == em_tlv_type_client_assoc_event) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        } else if (tlv->type == em_tlv_type_bcon_metric_query) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        } else if (tlv->type == em_tlv_type_bcon_metric_rsp) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        } else if (tlv->type == em_tlv_type_assoc_sta_link_metric) {
+            memcpy(mac, tlv->value, sizeof(mac_address_t));
+            return true;
+        }
+
+        len -= static_cast<unsigned int> (sizeof(em_tlv_t) + ntohs(tlv->len));
+        tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + ntohs(tlv->len));
     }
 
     return false;
@@ -242,12 +336,15 @@ bool em_msg_t::get_profile_type(em_profile_type_t *profile)
     em_tlv_t    *tlv;
     unsigned int len;
 
+    if (profile == nullptr) {
+        em_printfout("Error: get_profile_type called with null profile");
+        return false;
+    }
     *profile = em_profile_type_reserved;
     tlv = reinterpret_cast<em_tlv_t *> (m_buff); len = m_len;
     while ((tlv->type != em_tlv_type_eom) && (len > 0)) {
         if (tlv->type == em_tlv_type_profile) {
-            memcpy(reinterpret_cast<unsigned char *> (profile), tlv->value, htons(tlv->len));
-            return true;
+            return parse_profile_tlv(tlv->value, ntohs(tlv->len), profile);
         }
         len -= static_cast<unsigned int> (sizeof(em_tlv_t) + htons(tlv->len));
         tlv = reinterpret_cast<em_tlv_t *> (reinterpret_cast<unsigned char *> (tlv) + sizeof(em_tlv_t) + htons(tlv->len));
@@ -329,6 +426,11 @@ em_tlv_t *em_msg_t::get_next_tlv(em_tlv_t* tlv, em_tlv_t* tlvs_buff, unsigned in
     size_t offset = static_cast<size_t>(signed_offset);
     EM_ASSERT_MSG_TRUE(offset < buff_len, NULL, "TLV offset exceeds buffer length");
 
+    if (buff_len < sizeof(em_tlv_t)) {
+        em_printfout("Truncated packet: not enough space for TLV length field");
+        return NULL;
+    }
+
     // Calculate the size of the current TLV (header + data)
     uint16_t current_tlv_size = sizeof(em_tlv_t) + ntohs(tlv->len);
     
@@ -403,6 +505,110 @@ unsigned char* em_msg_t::add_1905_header(unsigned char *buff, unsigned int *len,
 
     return em_msg_t::add_buff_element(tmp, len, reinterpret_cast<uint8_t *> (&cmdu), sizeof(em_cmdu_t));
 }
+
+thread_local unsigned char em_msg_builder_t::s_tlv_value[EM_MAX_TLV_VALUE_SZ];
+
+em_msg_builder_t::em_msg_builder_t(unsigned int capacity) :
+    m_buff(), m_capacity(capacity), m_len(0), m_msg_type(0), m_failed(false)
+{
+}
+
+bool em_msg_builder_t::fits(unsigned int size)
+{
+    if (size > m_capacity - m_len) {
+        m_failed = true;
+        return false;
+    }
+
+    return true;
+}
+
+em_tlv_t *em_msg_builder_t::append_tlv(em_tlv_type_t tlv_type, unsigned int value_len)
+{
+    if (m_failed) {
+        return NULL;
+    }
+
+    if (value_len > EM_MAX_TLV_VALUE_SZ) {
+        m_failed = true;
+        em_printfout("msg type 0x%04x: TLV 0x%02x value length %u exceeds the TLV limit", m_msg_type, tlv_type, value_len);
+        return NULL;
+    }
+
+    unsigned int size = static_cast<unsigned int>(sizeof(em_tlv_t)) + value_len;
+
+    if (fits(size) == false) {
+        em_printfout("msg type 0x%04x: TLV 0x%02x of %u bytes does not fit, len %u capacity %u", m_msg_type, tlv_type, size, m_len, m_capacity);
+        return NULL;
+    }
+
+    m_buff.resize(m_len + size);
+    em_tlv_t *tlv = reinterpret_cast<em_tlv_t *>(m_buff.data() + m_len);
+    tlv->type = tlv_type;
+    tlv->len = htons(static_cast<unsigned short>(value_len));
+    m_len += size;
+
+    return tlv;
+}
+
+bool em_msg_builder_t::add_1905_header(mac_addr_t dst, mac_addr_t src, em_msg_type_t msg_type, unsigned short msg_id)
+{
+    unsigned int size = static_cast<unsigned int>(sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t));
+
+    if (m_failed) {
+        return false;
+    }
+
+    m_msg_type = msg_type;
+    if (fits(size) == false) {
+        em_printfout("msg type 0x%04x: header does not fit, len %u capacity %u", m_msg_type, m_len, m_capacity);
+        return false;
+    }
+
+    m_buff.resize(m_len + size);
+    em_msg_t::add_1905_header(m_buff.data() + m_len, &m_len, dst, src, msg_type, msg_id);
+
+    return true;
+}
+
+unsigned char *em_msg_builder_t::tlv_value()
+{
+    memset(s_tlv_value, 0, sizeof(s_tlv_value));
+
+    return s_tlv_value;
+}
+
+bool em_msg_builder_t::commit_tlv(em_tlv_type_t tlv_type, int value_len)
+{
+    if (value_len < 0) {
+        m_failed = true;
+        em_printfout("msg type 0x%04x: TLV 0x%02x not created (%d)", m_msg_type, tlv_type, value_len);
+        return false;
+    }
+
+    return add_tlv(tlv_type, s_tlv_value, static_cast<unsigned int>(value_len));
+}
+
+bool em_msg_builder_t::add_tlv(em_tlv_type_t tlv_type, const unsigned char *value, unsigned int value_len)
+{
+    em_tlv_t *tlv = append_tlv(tlv_type, value_len);
+
+    if (tlv == NULL) {
+        return false;
+    }
+
+    if (value_len > 0) {
+        memcpy(tlv->value, value, value_len);
+    }
+
+    return true;
+}
+
+bool em_msg_builder_t::add_eom()
+{
+    return append_tlv(em_tlv_type_eom, 0) != NULL;
+}
+
 unsigned int em_msg_t::validate(char *errors[])
 {
     em_tlv_t *tlv;

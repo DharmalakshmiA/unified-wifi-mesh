@@ -55,71 +55,6 @@ AlServiceAccessPoint* g_sap;
 MacAddress g_al_mac_sap;
 #endif
 
-static bool is_known_failure_status_code(unsigned short status_code)
-{
-    switch (status_code) {
-        case 1:  // Unspecified failure
-        case 5:  // Association denied; AP unable to handle BSS
-        case 10: // Cannot support all requested capabilities
-        case 11: // Reassociation denied; previous association unknown
-        case 12: // Association denied; reason outside scope
-        case 13: // Auth algorithm not supported
-        case 15: // Challenge failure (authentication denied)
-        case 16: // Association failure due to timeout
-        case 17: // Auth sequence timeout; STA did not respond
-        case 30: // Association rejected temporarily; try again later
-        case 31: // Robust management frame policy violation
-        case 43: // Invalid AKMP
-        case 44: // IEEE 802.1X authentication failed
-        case 45: // PMK not available/cached
-        case 53: // Invalid PMKID
-            return true;
-        default:
-            return false;
-    }
-}
-
-static bool is_known_failure_reason_code(unsigned short reason_code)
-{
-    switch (reason_code) {
-        case 2:  // Previous authentication not valid
-        case 3:  // Deauthenticated; STA is leaving
-        case 6:  // Class 2 frame from nonauthenticated STA
-        case 7:  // Class 3 frame from nonassociated STA
-        case 9:  // STA requested (re)assoc without authentication
-        case 13: // Invalid IE in frame
-        case 14: // Michael MIC failure
-        case 15: // 4-way handshake timeout
-        case 16: // Group key update timeout
-        case 17: // IE in 4-way handshake differs from (re)assoc request
-        case 18: // Group cipher suite not valid
-        case 19: // Pairwise cipher suite not valid
-        case 20: // AKMP not valid
-        case 21: // Unsupported RSN IE version
-        case 22: // Invalid RSN IE capabilities
-        case 23: // IEEE 802.1X authentication failed
-        case 24: // Cipher suite rejected by security policy
-        case 39: // Requested from peer STA (wrong password / MIC failure)
-        case 49: // Invalid PMKID
-            return true;
-        default:
-            return false;
-    }
-}
-
-static bool is_failed_connection_message(const em_connection_status_evt_data_t *conn_status_evt)
-{
-    if (conn_status_evt == nullptr) {
-        return false;
-    }
-
-    if (conn_status_evt->reason_code_present) {
-        return is_known_failure_reason_code(conn_status_evt->reason_code);
-    }
-
-    return is_known_failure_status_code(conn_status_evt->status_code);
-}
-
 void em_agent_t::handle_sta_list(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
@@ -474,11 +409,14 @@ void em_agent_t::handle_recv_assoc_status(em_bus_event_t *event)
     }
 }
 
-void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
+void em_agent_t::handle_recv_failed_conn(em_bus_event_t *event)
 {
-    const em_connection_status_evt_data_t *conn_status_evt = nullptr;
     em_bss_info_t *target_bss = nullptr;
     mac_address_t bssid = {0};
+    mac_address_t sta_mac = {0};
+    unsigned short status_code = 0;
+    unsigned short reason_code = 0;
+    bool reason_code_present = false;
     em_t *em = nullptr;
     em_event_t *qevt = nullptr;
     em_connection_status_evt_data_t *evt_copy = nullptr;
@@ -489,31 +427,55 @@ void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
         return;
     }
 
-    if (event->u.raw_buff == nullptr || event->data_len != sizeof(em_connection_status_evt_data_t)) {
-        em_printfout("Invalid connection status payload: expected %zu, got %u",
-                     sizeof(em_connection_status_evt_data_t), event->data_len);
+    if (event->u.raw_buff == nullptr || event->data_len == 0) {
+        em_printfout("NULL failed connection payload!");
         return;
     }
 
-    conn_status_evt = reinterpret_cast<const em_connection_status_evt_data_t *>(event->u.raw_buff);
+    // event->u.raw_buff is a fixed-length copy of the bus payload and is not
+    // guaranteed to be NUL-terminated; copy it into a NUL-terminated buffer
+    // before treating it as a C string.
+    std::vector<char> payload(event->data_len + 1, '\0');
+    memcpy(payload.data(), event->u.raw_buff, event->data_len);
 
-    if (!is_failed_connection_message(conn_status_evt)) {
+    cJSON *obj = cJSON_Parse(payload.data());
+    if (obj == nullptr) {
+        em_printfout("Failed connection JSON parse failed, raw: %s", payload.data());
         return;
     }
 
-    memcpy(bssid, conn_status_evt->bssid, sizeof(mac_address_t));
+    cJSON *bssid_item = cJSON_GetObjectItem(obj, "bssid");
+    cJSON *sta_item = cJSON_GetObjectItem(obj, "sta_mac");
+    cJSON *status_item = cJSON_GetObjectItem(obj, "status");
+    cJSON *reason_item = cJSON_GetObjectItem(obj, "reason");
+
+    if (!cJSON_IsString(bssid_item) || !cJSON_IsString(sta_item) || !cJSON_IsNumber(status_item)) {
+        em_printfout("Failed connection JSON missing/invalid mandatory fields (bssid/sta_mac/status), raw: %s", payload.data());
+        cJSON_Delete(obj);
+        return;
+    }
+
+    dm_easy_mesh_t::string_to_macbytes(bssid_item->valuestring, bssid);
+    dm_easy_mesh_t::string_to_macbytes(sta_item->valuestring, sta_mac);
+    status_code = static_cast<unsigned short>(status_item->valueint);
+
+    if (reason_item && cJSON_IsNumber(reason_item)) {
+        reason_code = static_cast<unsigned short>(reason_item->valueint);
+        reason_code_present = true;
+    }
+
+    cJSON_Delete(obj);
+
     target_bss = m_data_model.get_bss_info_with_mac(bssid);
     if (target_bss == nullptr) {
-        em_printfout("No BSS for bssid=%s, drop",
-                     util::mac_to_string(conn_status_evt->bssid).c_str());
+        em_printfout("No BSS for bssid=%s, drop", util::mac_to_string(bssid).c_str());
         return;
     }
 
     ruid_str = util::mac_to_string(target_bss->ruid.mac);
     em = static_cast<em_t *>(hash_map_get(g_agent.m_em_map, ruid_str.c_str()));
     if (em == nullptr) {
-        em_printfout("No radio EM for bssid=%s, drop",
-                     util::mac_to_string(conn_status_evt->bssid).c_str());
+        em_printfout("No radio EM for bssid=%s, drop", util::mac_to_string(bssid).c_str());
         return;
     }
 
@@ -523,14 +485,18 @@ void em_agent_t::handle_recv_connection_status(em_bus_event_t *event)
         return;
     }
 
-    evt_copy = static_cast<em_connection_status_evt_data_t *>(malloc(sizeof(em_connection_status_evt_data_t)));
+    evt_copy = static_cast<em_connection_status_evt_data_t *>(calloc(1, sizeof(em_connection_status_evt_data_t)));
     if (evt_copy == nullptr) {
-        em_printfout("Failed to alloc connection status payload");
+        em_printfout("Failed to alloc failed connection payload");
         free(qevt);
         return;
     }
 
-    memcpy(evt_copy, conn_status_evt, sizeof(em_connection_status_evt_data_t));
+    memcpy(evt_copy->bssid, bssid, sizeof(mac_address_t));
+    memcpy(evt_copy->sta_mac, sta_mac, sizeof(mac_address_t));
+    evt_copy->status_code = status_code;
+    evt_copy->reason_code = reason_code;
+    evt_copy->reason_code_present = reason_code_present;
 
     qevt->type = em_event_type_cmd;
     qevt->u.cevt.type = em_cmd_event_type_failed_connection;
@@ -786,37 +752,92 @@ void em_agent_t::handle_btm_response_action_frame(em_bus_event_t *evt)
 void em_agent_t::handle_client_assoc_ctrl_req(em_bus_event_t *evt)
 {
     wifi_bus_desc_t *desc;
-    raw_data_t raw;
-    client_assoc_ctrl_req_t req_data;
 
-    em_client_assoc_ctrl_req_t *steer_req = reinterpret_cast<em_client_assoc_ctrl_req_t*> (&evt->u.raw_buff);
+    if ((evt == NULL) || (evt->u.raw_buff == NULL) || (evt->data_len == 0)) {
+        em_printfout("%s:%d Invalid event (evt=%p buff=%p len=%u)", __func__, __LINE__, evt,
+            (evt ? evt->u.raw_buff : NULL), (evt ? evt->data_len : 0));
+        return;
+    }
 
+    em_client_assoc_ctrl_req_t *client_assoc = reinterpret_cast<em_client_assoc_ctrl_req_t *>(evt->u.raw_buff);
     if ((desc = get_bus_descriptor()) == NULL) {
-        em_printfout("bus descriptor is null");
+        em_printfout("%s:%d bus descriptor is null", __func__, __LINE__);
         return;
     }
 
-    if (steer_req->count != 1) {
-        em_printfout("station count:%d is more than one", steer_req->count);
+    const size_t fixed_len = sizeof(bssid_t) + sizeof(unsigned char) + sizeof(unsigned short) + sizeof(unsigned char);
+    if (evt->data_len < fixed_len) {
+        em_printfout("%s:%d Invalid CACR payload (data_len=%u expected_min=%zu)",
+            __func__, __LINE__, evt->data_len, fixed_len);
         return;
     }
-    memset(&req_data, 0, sizeof(client_assoc_ctrl_req_t));
 
-    memcpy(req_data.bssid, steer_req->bssid, sizeof(bssid_t));
-    req_data.assoc_control = steer_req->assoc_control;
-    req_data.validity_period = ntohs(steer_req->validity_period);
-    req_data.count = steer_req->count;
-    memcpy(req_data.sta_mac, steer_req->sta_mac, sizeof(mac_address_t));
-
-    memset(&raw, 0, sizeof(raw_data_t));
-    raw.data_type = bus_data_type_bytes;
-    raw.raw_data.bytes = static_cast<void *>(&req_data);
-    raw.raw_data_len = sizeof(client_assoc_ctrl_req_t);
-
-    if (desc->bus_set_fn(&m_bus_hdl,WIFI_EM_CLIENT_ASSOC_CTRL_REQ, &raw) != 0) {
-        em_printfout("%s:%d Failed to send client assoc ctrl request to bus",__func__, __LINE__);
+    const uint8_t sta_count = client_assoc->sta_count;
+    const size_t required_len = fixed_len + (static_cast<size_t>(sta_count) * sizeof(mac_address_t));
+    if (sta_count == 0 || sta_count > MAX_STA_LIST || evt->data_len < required_len) {
+        em_printfout("%s:%d Invalid CACR payload (sta_count=%u data_len=%u required_min=%zu max=%u)",
+            __func__, __LINE__, sta_count, evt->data_len, required_len, MAX_STA_LIST);
+        return;
     }
-    em_printfout("%s:%d Sent client assoc ctrl request to bus, OneWifi will process the bus event",__func__, __LINE__);
+
+    cJSON *root = cJSON_CreateObject();
+    if (!root) {
+        em_printfout("%s:%d Failed to create JSON root object", __func__, __LINE__);
+        return;
+    }
+
+    cJSON_AddStringToObject(root, "Version", "1.0");
+    cJSON_AddStringToObject(root, "SubDocName", "ClientAssocCtrlRequest");
+
+    cJSON *req = cJSON_AddObjectToObject(root, "ClientAssocCtrlRequest");
+    if (!req) {
+        cJSON_Delete(root);
+        return;
+    }
+
+    std::string bssid_str = util::mac_to_string(client_assoc->bssid);
+    cJSON_AddStringToObject(req, "Bssid", bssid_str.c_str());
+
+    cJSON_AddNumberToObject(req, "AssocControl", client_assoc->assoc_control);
+
+    uint16_t vp = ntohs(client_assoc->validity_period);
+    cJSON_AddNumberToObject(req, "ValidityPeriod", vp);
+
+    cJSON *sta_arr = cJSON_AddArrayToObject(req, "StaMacList");
+    if (!sta_arr) {
+        cJSON_Delete(root);
+        return;
+    }
+
+    for (uint8_t i = 0; i < client_assoc->sta_count; i++) {
+        std::string mac_str = util::mac_to_string(client_assoc->sta_list[i]);
+        cJSON_AddItemToArray(sta_arr, cJSON_CreateString(mac_str.c_str()));
+    }
+
+    char *json_str = cJSON_Print(root);
+    if (!json_str) {
+        em_printfout("%s:%d JSON serialization failed", __func__, __LINE__);
+        cJSON_Delete(root);
+        return;
+    }
+
+    em_printfout("%s:%d Received data for event [%s] and data:\n%s\n ", __func__, __LINE__,WIFI_EM_CLIENT_ASSOC_CTRL_REQ, json_str );
+
+    raw_data_t bus_data;
+    memset(&bus_data, 0, sizeof(bus_data));
+
+    bus_data.data_type = bus_data_type_string;
+    bus_data.raw_data.bytes = json_str;
+    bus_data.raw_data_len = strlen(json_str);
+
+    if (desc->bus_set_fn(&m_bus_hdl, WIFI_EM_CLIENT_ASSOC_CTRL_REQ, &bus_data) != 0) {
+        em_printfout("%s:%d Failed to send CACR subdoc", __func__, __LINE__);
+    } else {
+        em_printfout("%s:%d Sent CACR subdoc successfully", __func__, __LINE__);
+    }
+
+    cJSON_free(json_str);
+    cJSON_Delete(root);
 }
 
 void em_agent_t::handle_channel_scan_result(em_bus_event_t *evt)
@@ -1112,17 +1133,129 @@ void em_agent_t::handle_set_policy(em_bus_event_t *evt)
     }
 }
 
+void em_agent_t::send_beacon_query(em_bus_event_t *evt)
+{
+    raw_data_t l_bus_data;
+    beacon_query_params_t beacon_query = {0};
+    wifi_BeaconRequest_t *beacon_req = &beacon_query.data;
+    em_beacon_metrics_query_t *query_params = reinterpret_cast<em_beacon_metrics_query_t *>(evt->u.raw_buff);
+    bus_error_t rc;
+    wifi_bus_desc_t *desc;
+    int total_ch = 0;
+    const int max_hal_ch = MAX_CHANNELS_REPORT;
+
+    if (evt->data_len < sizeof(em_beacon_metrics_query_t)) {
+         em_printfout("Beacon Query event payload too short (len=%u)", evt->data_len);
+         return;
+    }
+    if ((memcmp(query_params->sta_mac_addr, ZERO_MAC_ADDR, sizeof(mac_address_t)) == 0)) {
+        em_beacon_metrics_query_t *subdoc_query = reinterpret_cast<em_beacon_metrics_query_t *>(evt->u.subdoc.buff);
+        if (memcmp(subdoc_query->sta_mac_addr, ZERO_MAC_ADDR, sizeof(mac_address_t)) != 0) {
+            em_printfout("Beacon Query payload found in subdoc buffer, using fallback decode path");
+            query_params = subdoc_query;
+        }
+    }
+
+    em_printfout("Beacon Query forwarding to OW for sta: %s", util::mac_to_string(query_params->sta_mac_addr).c_str());
+    beacon_req->opClass = query_params->op_class;
+    beacon_req->channel = query_params->channel_num;
+
+    // channel_num==0 means current channel; 255 is wildcard (all channels).
+    // Passive mode avoids probe-request transmission on off-channel/DFS channels.
+    bool is_off_channel = true;
+    if (query_params->channel_num == 0) {
+        is_off_channel = false;
+    } else if (query_params->channel_num != 255) {
+        em_bss_info_t *bss_info = m_data_model.get_bss_info_with_mac(query_params->bssid);
+        if (bss_info != NULL) {
+            for (unsigned int i = 0; i < m_data_model.m_num_opclass; i++) {
+                em_op_class_info_t *oc = &m_data_model.m_op_class[i].m_op_class_info;
+                if (memcmp(oc->id.ruid, bss_info->ruid.mac, sizeof(mac_address_t)) == 0 &&
+                        oc->id.type == em_op_class_type_current && oc->channel != 0) {
+                    is_off_channel = (query_params->channel_num != static_cast<unsigned char>(oc->channel));
+                    break;
+                }
+            }
+        }
+    }
+    // Measurement mode: 0=Passive, 1=Active
+    beacon_req->mode = is_off_channel ? 0 : 1;
+    em_printfout("Beacon Query: channel=%u is_off_channel=%d mode=%u",
+        query_params->channel_num, (int)is_off_channel, beacon_req->mode);
+
+    beacon_req->duration = 200;
+    memcpy(beacon_req->bssid, query_params->bssid, sizeof(mac_address_t));
+    beacon_req->ssidPresent = (query_params->ssid_len > 0);
+    if (beacon_req->ssidPresent) {
+        size_t ssid_copy_len = query_params->ssid_len;
+        if (ssid_copy_len >= sizeof(beacon_req->ssid)) {
+            ssid_copy_len = sizeof(beacon_req->ssid) - 1;
+        }
+        memcpy(beacon_req->ssid, query_params->ssid, ssid_copy_len);
+        beacon_req->ssid[ssid_copy_len] = '\0';
+    }
+    em_printfout("SSID Name: %s[%s]", beacon_req->ssid, util::mac_to_string(beacon_req->bssid).c_str());
+    beacon_req->reportingDetail = query_params->rprt_detail;
+
+    for (int i = 0; i < query_params->num_ap_channel_rprt && total_ch < max_hal_ch; i++) {
+        // All entries share the same op_class (single-band query); use the first.
+        if (i == 0) {
+            beacon_req->channelReport.opClass = query_params->ap_channel_rprt[i].ap_channel_op_class;
+        }
+        int num_ch = query_params->ap_channel_rprt[i].ap_channel_rprt_len - 1;
+        for (int j = 0; j < num_ch && total_ch < max_hal_ch; j++) {
+            uint8_t ch = query_params->ap_channel_rprt[i].ap_channel_list[j];
+            em_printfout("Ap Channel Report[%d] - OpClass: %d Channel: %d", i,
+                beacon_req->channelReport.opClass, ch);
+            beacon_req->channelReport.channels[total_ch++] = ch;
+        }
+    }
+    em_printfout("Total channels accumulated into HAL channelReport: %d", total_ch);
+    beacon_req->channelReportPresent = (query_params->num_ap_channel_rprt > 0);
+    // Clamp to both the HAL destination capacity and the source array size: the
+    // subdoc path reaches here without the wire-TLV parser's num_element_id clamp.
+    size_t max_ids = sizeof(beacon_req->requestedElementIDS.ids) / sizeof(beacon_req->requestedElementIDS.ids[0]);
+    size_t src_ids = sizeof(query_params->element_list.element_list) / sizeof(query_params->element_list.element_list[0]);
+    if (src_ids < max_ids) {
+        max_ids = src_ids;
+    }
+    size_t ids_to_copy = static_cast<size_t>(query_params->element_list.num_element_id);
+    if (ids_to_copy > max_ids) {
+        ids_to_copy = max_ids;
+    }
+    for (size_t i = 0; i < ids_to_copy; i++) {
+        beacon_req->requestedElementIDS.ids[i] = query_params->element_list.element_list[i];
+        em_printfout("Requested Element ID: %d", beacon_req->requestedElementIDS.ids[i]);
+    }
+
+    if((desc = get_bus_descriptor()) == NULL) {
+       em_printfout("descriptor is null");
+       return;
+    }
+
+    l_bus_data.data_type = bus_data_type_bytes;
+    l_bus_data.raw_data.bytes = (void *)&beacon_query;
+    l_bus_data.raw_data_len = sizeof(beacon_query_params_t);
+
+    memcpy(beacon_query.sta_mac, query_params->sta_mac_addr, sizeof(mac_address_t));
+    if ((rc = desc->bus_set_fn(&m_bus_hdl, "Device.WiFi.EM.BeaconQuery", &l_bus_data)) != 0) {
+        em_printfout("Failed to send Beacon Query to bus rc=%d len=%u", rc, l_bus_data.raw_data_len);
+        return;
+    }
+    em_printfout("Successfully sent Beacon Query to bus");
+}
+
 void em_agent_t::handle_beacon_report(em_bus_event_t *evt)
 {
     em_cmd_t *pcmd[EM_MAX_CMD] = {NULL};
     unsigned int num = 0;
 
     if (m_orch->is_cmd_type_in_progress(evt) == true) {
-        printf("analyze_beacon_report in progress\n");
+        em_printfout("analyze_beacon_report in progress");
     } else if ((num = static_cast<unsigned int>(m_data_model.analyze_beacon_report(evt, pcmd))) == 0) {
-        printf("analyze_beacon_report failed\n");
+        em_printfout("analyze_beacon_report failed");
     } else if (m_orch->submit_commands(pcmd, num) > 0) {
-        printf("submitted beacon report cmd for orch\n");
+        em_printfout("submitted beacon report cmd for orchestration");
     }
 }
 
@@ -1269,6 +1402,10 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_set_policy(evt);
             break;
 
+        case em_bus_event_type_beacon_query:
+            send_beacon_query(evt);
+            break;
+
         case em_bus_event_type_beacon_report:
             handle_beacon_report(evt);
             break;
@@ -1284,8 +1421,8 @@ void em_agent_t::handle_bus_event(em_bus_event_t *evt)
             handle_recv_assoc_status(evt);
             break;
 
-        case em_bus_event_type_connection_status:
-            handle_recv_connection_status(evt);
+        case em_bus_event_type_failed_conn:
+            handle_recv_failed_conn(evt);
             break;
 
         case em_bus_event_type_ap_metrics_report:
@@ -1514,6 +1651,8 @@ void em_agent_t::input_listener()
 
     em_printfout("bus open success");
 
+    load_em_plus_cfg();
+
     memset(&data, 0, sizeof(raw_data_t));
 
     while ((bus_error_val = desc->bus_data_get_fn(&m_bus_hdl, WIFI_WEBCONFIG_INIT_DML_DATA, &data)) != bus_error_success) {
@@ -1565,9 +1704,8 @@ void em_agent_t::input_listener()
         return;
     }
 
-    if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EM.ReportConnectionStatus", reinterpret_cast<void *>(&em_agent_t::connection_status_cb), nullptr, 0) != 0) {
-        em_printfout("Error: Failed to subscribe to 'Device.WiFi.EM.ReportConnectionStatus'");
-        return;
+    if (desc->bus_event_subs_fn(&m_bus_hdl, WIFI_EM_FAILED_CONNECTION, reinterpret_cast<void *>(&em_agent_t::failed_conn_cb), nullptr, 0) != 0) {
+        em_printfout("Warning: Failed to subscribe to '" WIFI_EM_FAILED_CONNECTION "', Failed Connection reporting unavailable");
     }
 
     if (desc->bus_event_subs_fn(&m_bus_hdl, "Device.WiFi.EC.BSSInfo", reinterpret_cast<void *>(&em_agent_t::bss_info_cb), nullptr, 0) != 0) {
@@ -1670,19 +1808,13 @@ int em_agent_t::association_status_cb(char *event_name, bus_data_prop_t *data, v
     return 1;
 }
 
-int em_agent_t::connection_status_cb(char *event_name, bus_data_prop_t *data, void *userData)
+int em_agent_t::failed_conn_cb(char *event_name, bus_data_prop_t *data, void *userData)
 {
-    (void)event_name;
-    (void)userData;
-
     if (data == nullptr) {
-        em_printfout("NULL data from OneWiFi callback!");
+        em_printfout("NULL data from OneWiFi failed connection callback!");
         return -1;
     }
-
-    g_agent.io_process(em_bus_event_type_connection_status,
-                       reinterpret_cast<unsigned char *>(data->value.raw_data.bytes),
-                       data->value.raw_data_len);
+    g_agent.io_process(em_bus_event_type_failed_conn, reinterpret_cast<unsigned char *>(data->value.raw_data.bytes), data->value.raw_data_len);
     return 1;
 }
 
@@ -1734,7 +1866,7 @@ int em_agent_t::report_cb(char *event_name, bus_data_prop_t *data, void *userDat
                     cJSON_Delete(json);
                     return -1;
                 }
-                em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
+                //em_printfout("Received Frame data for event [%s] and data :\n%s", event_name, data->value.raw_data.bytes);
             }
             cJSON_Delete(json);
         }
@@ -1925,8 +2057,8 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
     bool found = false;
     em_string_t al_mac_str;
     em_bss_info_t *em_bss = NULL;
-    mac_address_t fallback_ruid = {0};
     unsigned int i = 0, j = 0;
+    mac_addr_t fallback_ruid;
 
     assert(len > ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))));
     if (len < ((sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)))) {
@@ -1983,31 +2115,46 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 		found = false;
 		if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
 				len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_freq_band(&band) == false) {
-			printf("%s:%d: Could not find frequency band\n", __func__, __LINE__);
+			em_printfout("Could not find frequency band");
 			return NULL;
 		}
 
 		if (em_msg_t(data + (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t)),
 			len - (sizeof(em_raw_hdr_t) + sizeof(em_cmdu_t))).get_al_mac_address(ruid) == false) {
-			printf("%s:%d: Could not find radio_id for em_msg_type_autoconf_renew\n", __func__, __LINE__);
+			em_printfout("Could not find AL MAC for em_msg_type_autoconf_renew");
 			return NULL;
 		}
 		dm_easy_mesh_t::macbytes_to_string(ruid, al_mac_str);
-		strcat(al_mac_str, "_al");
-		if ((em = static_cast<em_t *>(hash_map_get(m_em_map, al_mac_str))) != NULL) {
-			printf("%s:%d: Found existing AL MAC:%s\n", __func__, __LINE__, al_mac_str);
-		} else {
-			return NULL;
-		}
+
 		em = static_cast<em_t *>(hash_map_get_first(m_em_map));
 		while (em != NULL) {
 			if (!(em->is_al_interface_em())) {
+				if (em->get_data_model() != NULL) {
+					mac_address_t ctrl_al_mac = {0};
+					unsigned char *ctrl_mac_ptr = em->get_data_model()->get_ctrl_al_interface_mac();
+					if (ctrl_mac_ptr != NULL) {
+						memcpy(ctrl_al_mac, ctrl_mac_ptr, sizeof(mac_address_t));
+					}
+					mac_address_t zero_mac = {0};
+					// Check if the controller AL MAC is not zero and does not match the received AL MAC
+					if ((memcmp(ctrl_al_mac, zero_mac, sizeof(mac_address_t)) != 0) &&
+					    (memcmp(ruid, ctrl_al_mac, sizeof(mac_address_t)) != 0)) {
+						dm_easy_mesh_t::macbytes_to_string(ctrl_al_mac, mac_str2);
+						em_printfout("Received AL MAC %s does not match previously connected controller AL MAC %s", al_mac_str, mac_str2);
+						em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
+						//TODO : Need to check do we really need to check for next radio if match fails!
+						continue;
+					}
+				}
 				if (em->is_matching_freq_band(&band) == true) {
-					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending) && (em->get_state() != em_state_agent_owconfig_pending) ) {
+					/* Accept renew in owconfig_pending too: the apply confirmation
+					 * never arrived and renew is the mechanism to recover that. */
+					if ((em->get_state() != em_state_agent_autoconfig_renew_pending) && (em->get_state() !=em_state_agent_wsc_m2_pending)) {
+						em_printfout("Found matching band %d for autoconfig renew request, received controller AL MAC is %s", band, al_mac_str);
 						found = true;
 						break;
 					} else {
-						printf("%s:%d: Found matching band%d but incorrect em state %d\n", __func__, __LINE__, band, em->get_state());
+						em_printfout("Found matching band %d but incorrect em state %d", band, em->get_state());
 						return NULL;
 					}
 				}
@@ -2015,7 +2162,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 			em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
 		}
 		if (found == false) {
-			printf("%s:%d: Could not find em with matching band%d and expected state \n", __func__, __LINE__, band);
+			em_printfout("Could not find em with matching band %d and expected state", band);
 			return NULL;
 		}
 		break;
@@ -2106,6 +2253,7 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
                     em = static_cast<em_t *>(hash_map_get(m_em_map, mac_str2));
                     if (em != NULL) {
                         em_printfout("Client cap query AP-MLD bss=%s resolved to radio=%s", mac_str1, mac_str2);
+                        break;
                     }
                 }
             }
@@ -2197,10 +2345,12 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
 		case em_msg_type_channel_scan_rprt:
         case em_msg_type_beacon_metrics_rsp:
         case em_msg_type_ap_mld_config_resp:
-        case em_msg_type_beacon_metrics_query:
         case em_msg_type_ap_metrics_rsp:
             break;
 
+        case em_msg_type_beacon_metrics_query:
+            em = al_em;
+            break;
         case em_msg_type_proxied_encap_dpp:
         case em_msg_type_direct_encap_dpp:
         case em_msg_type_chirp_notif:
@@ -2251,11 +2401,11 @@ em_t *em_agent_t::find_em_for_msg_type(unsigned char *data, unsigned int len, em
             break;
 
         case em_msg_type_unassoc_sta_link_metrics_rsp:
-           printf("%s:%d: Sending Unassoc STA Link Metrics response\n", __func__, __LINE__);
-           break;
+            em_printfout("Sending Unassoc STA Link Metrics response");
+            break;
 
         default:
-            printf("%s:%d: Frame: %d not handled in agent\n", __func__, __LINE__, htons(cmdu->type));
+            em_printfout("Frame: %d not handled in agent", htons(cmdu->type));
             em = NULL;
             break;	
 	}
@@ -2352,6 +2502,51 @@ bool em_agent_t::try_create_default_em_cfg(std::string interface)
     free(json_str);
 
     return true;
+}
+
+void em_agent_t::load_em_plus_cfg()
+{
+
+    m_data_model.get_device_info()->is_emplus_agent = 0;
+
+    FILE *fp = fopen(EM_PLUS_FILE, "r");
+    if (fp == NULL) {
+        return;
+    }
+
+    if (fseek(fp, 0, SEEK_END) != 0) {
+        fclose(fp);
+        return;
+    }
+    long sz = ftell(fp);
+    rewind(fp);
+
+    if (sz <= 0) {
+        fclose(fp);
+        return;
+    }
+
+    char *buf = static_cast<char *>(malloc(static_cast<size_t>(sz) + 1));
+    if (buf == NULL) {
+        fclose(fp);
+        return;
+    }
+    size_t nread = fread(buf, 1, static_cast<size_t>(sz), fp);
+    buf[nread] = '\0';
+    fclose(fp);
+
+    cJSON *root = cJSON_Parse(buf);
+    free(buf);
+    if (root == NULL) {
+      return;
+    }
+
+    cJSON *item = cJSON_GetObjectItem(root, "EM_Plus");
+    if (cJSON_IsBool(item) && cJSON_IsTrue(item)) {
+        m_data_model.get_device_info()->is_emplus_agent = 1;
+        em_printfout("EM+ agent mode enabled");
+    }
+    cJSON_Delete(root);
 }
 
 bool em_agent_t::try_start_dpp_onboarding()  {

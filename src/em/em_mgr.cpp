@@ -133,15 +133,26 @@ void em_mgr_t::proto_process(unsigned char *data, unsigned int len, em_t *al_em)
     em_event_t	*evt;
     em_t *em = NULL;
 
-	em = find_em_for_msg_type(data, len, al_em);
-	if (em == NULL) {
-		em_printfout("%s %d EM null\n", __func__, __LINE__);
-		return;
-	}
+    em = find_em_for_msg_type(data, len, al_em);
+    if (em == NULL) {
+        em_printfout("Error: find_em_for_msg_type failed");
+        return;
+    }
 
     evt = static_cast<em_event_t *>(malloc(sizeof(em_event_t)));
+    if (evt == NULL) {
+        em_printfout("Error: malloc failed for em_event_t structure");
+        return;
+    }
+
     evt->type = em_event_type_frame;
     evt->u.fevt.frame = static_cast<unsigned char *>(malloc(len));
+    if (evt->u.fevt.frame == NULL) {
+        em_printfout("Error: malloc failed for frame buffer (requested size=%u)", len);
+        free(evt);
+        return;
+    }
+
     memcpy(evt->u.fevt.frame, data, len);
     evt->u.fevt.frame_len = len;
     em->push_to_queue(evt);
@@ -585,7 +596,7 @@ void em_mgr_t::nodes_listener()
                         proto_process(buff, static_cast<unsigned int>(len), em);
                     }
                 }
-#endif
+#endif //AL_SAP not defined.
             }
             em = static_cast<em_t *>(hash_map_get_next(m_em_map, em));
         }
@@ -675,7 +686,6 @@ int em_mgr_t::start()
     int rc;
     em_event_t *evt;;
     struct timespec time_to_wait;
-    struct timeval tm;
 	bool started = false;
     input_listen();
     nodes_listen();
@@ -683,9 +693,8 @@ int em_mgr_t::start()
     while (m_exit == false) {
         rc = 0;
 
-        gettimeofday(&tm, NULL);
-        time_to_wait.tv_sec = tm.tv_sec;
-       	time_to_wait.tv_nsec = tm.tv_usec * 1000;
+        /* m_queue.cond is CLOCK_MONOTONIC (util::monotonic_cond_init) */
+        util::monotonic_now(&time_to_wait);
 		util::add_milliseconds(&time_to_wait, m_queue.timeout);
 
         if (queue_count(m_queue.queue) == 0) {
@@ -754,7 +763,14 @@ int em_mgr_t::init(const char *data_model_path)
     // initialize the egress queue
     m_queue.queue = queue_create();
     pthread_mutex_init(&m_queue.lock, NULL);
-    pthread_cond_init(&m_queue.cond, NULL);
+    int rc = util::monotonic_cond_init(&m_queue.cond);
+    if (rc != 0) {
+        em_printfout("Failed to initialize egress queue condition variable, err:%d", rc);
+        pthread_mutex_destroy(&m_queue.lock);
+        queue_destroy(m_queue.queue);
+        hash_map_destroy(m_em_map);
+        return -1;
+    }
 
     m_queue.timeout = EM_MGR_TOUT;
     m_msg_id = 0;

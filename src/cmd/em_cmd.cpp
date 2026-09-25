@@ -181,6 +181,11 @@ char *em_cmd_t::status_to_string(em_cmd_out_status_t status, char *str)
 void em_cmd_t::deinit()
 {
     if (m_em_candidates != nullptr) {
+        // queue_destroy frees the data pointers it still holds, and the
+        // em_t candidates are owned by em_mgr's m_em_map — drain first
+        while (queue_count(m_em_candidates) != 0) {
+            queue_remove(m_em_candidates, queue_count(m_em_candidates) - 1);
+        }
         queue_destroy(m_em_candidates);
         m_em_candidates = nullptr;
     }
@@ -471,6 +476,11 @@ void em_cmd_t::init()
             m_svc = em_service_type_ctrl;
             break;
 
+        case em_cmd_type_client_assoc_ctrl_req:
+            strncpy(m_name, "client_assoc", strlen("client_assoc") + 1);
+            m_svc = em_service_type_ctrl;
+            break;
+
         default:
             snprintf(m_name, sizeof(m_name), "%s", "unknown");
             m_svc = em_service_type_none;
@@ -523,6 +533,8 @@ const char *em_cmd_t::get_bus_event_type_str(em_bus_event_type_t type)
         BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_query)
 	BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_link_metrics_query)
 	BUS_EVENT_TYPE_2S(em_bus_event_type_unassoc_sta_result)
+	BUS_EVENT_TYPE_2S(em_bus_event_type_failed_conn)
+        BUS_EVENT_TYPE_2S(em_bus_event_type_client_assoc_ctrl_req)
        
         default:
            break;
@@ -602,6 +614,7 @@ const char *em_cmd_t::get_orch_op_str(dm_orch_type_t type)
         ORCH_TYPE_2S(dm_orch_type_topo_publish)
         ORCH_TYPE_2S(dm_orch_type_unassoc_sta_link_req_query)
 	ORCH_TYPE_2S(dm_orch_type_unassoc_sta_result)
+        ORCH_TYPE_2S(dm_orch_type_client_assoc)
 
         default:
            break;
@@ -660,6 +673,7 @@ const char *em_cmd_t::get_cmd_type_str(em_cmd_type_t type)
         CMD_TYPE_2S(em_cmd_type_get_link_quality_report)
         CMD_TYPE_2S(em_cmd_type_unassoc_sta_query)
 	CMD_TYPE_2S(em_cmd_type_unassoc_sta_result)
+        CMD_TYPE_2S(em_cmd_type_client_assoc_ctrl_req)
 
         default:
            break;
@@ -818,6 +832,10 @@ em_cmd_type_t em_cmd_t::bus_2_cmd_type(em_bus_event_type_t etype)
             type = em_cmd_type_set_channel;
             break;
 
+        case em_bus_event_type_client_assoc_ctrl_req:
+            type = em_cmd_type_client_assoc_ctrl_req;
+            break;
+
         default:
             break;
     }
@@ -876,6 +894,10 @@ em_bus_event_type_t em_cmd_t::cmd_2_bus_event_type(em_cmd_type_t ctype)
 
         case em_cmd_type_unassoc_sta_result:
             type = em_bus_event_type_unassoc_sta_result;
+            break;
+
+        case em_cmd_type_client_assoc_ctrl_req:
+            type = em_bus_event_type_client_assoc_ctrl_req;
             break;
 
         default:
@@ -952,6 +974,8 @@ em_cmd_t::em_cmd_t()
 
 em_cmd_t::~em_cmd_t()
 {
-	free(m_evt);	
+	// deinit is idempotent; paths that already call it before delete are safe
+	deinit();
+	free(m_evt);
 }
 
