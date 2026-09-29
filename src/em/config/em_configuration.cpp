@@ -1110,6 +1110,10 @@ int em_configuration_t::create_ap_mld_config_tlv(unsigned char *buff)
 
     dm = get_data_model();
 
+    if (buff == NULL || dm == NULL) {
+        return -1;
+    }
+
     ap_mld_conf = reinterpret_cast<em_ap_mld_config_t *> (buff);
     memset(ap_mld_conf, 0, sizeof(em_ap_mld_config_t));
 
