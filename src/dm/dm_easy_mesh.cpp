@@ -146,11 +146,6 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         }
     }
 
-    m_num_ap_mld = obj.m_num_ap_mld;
-    for (unsigned int i = 0; i < EM_MAX_AP_MLD; i++) {
-        m_ap_mld[i] = obj.m_ap_mld[i];
-    }
-
     if (obj.m_assoc_sta_mld != NULL && obj.m_num_assoc_sta_mld != 0) {
         alloc_assoc_sta_mld_storage();
         for (unsigned int i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
