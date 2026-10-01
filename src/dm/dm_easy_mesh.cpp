@@ -3760,17 +3760,7 @@ void dm_easy_mesh_t::update_ap_mld_info(em_ap_mld_info_t *ap_mld_info)
         em_affiliated_ap_info_t *target_aff_ap = NULL;
         bool aff_ap_found = false;
 
-        em_printfout("Processing affiliated AP input index=%d bssid=%02x:%02x:%02x:%02x:%02x:%02x link_id=%d valid=%d",
-            j, input_ap->mac_addr[0], input_ap->mac_addr[1], input_ap->mac_addr[2],
-            input_ap->mac_addr[3], input_ap->mac_addr[4], input_ap->mac_addr[5],
-            input_ap->link_id, input_ap->mac_addr_valid);
-
         for (int k = 0; k < target_mld->num_affiliated_ap; k++) {
-            em_printfout("Comparing input affiliated AP index=%d with existing index=%d bssid=%02x:%02x:%02x:%02x:%02x:%02x",
-                j, k, target_mld->affiliated_ap[k].mac_addr[0],
-                target_mld->affiliated_ap[k].mac_addr[1], target_mld->affiliated_ap[k].mac_addr[2],
-                target_mld->affiliated_ap[k].mac_addr[3], target_mld->affiliated_ap[k].mac_addr[4],
-                target_mld->affiliated_ap[k].mac_addr[5]);
             if (memcmp(target_mld->affiliated_ap[k].mac_addr, input_ap->mac_addr, sizeof(mac_address_t)) == 0) {
                 target_aff_ap = &target_mld->affiliated_ap[k];
                 aff_ap_found = true;
