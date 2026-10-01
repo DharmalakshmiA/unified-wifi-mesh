@@ -119,10 +119,16 @@ dm_easy_mesh_t& dm_easy_mesh_t::operator = (dm_easy_mesh_t const& obj)
         m_ap_mld[i] = obj.m_ap_mld[i];
     }
 
-    m_num_assoc_sta_mld = obj.m_num_assoc_sta_mld;
-    for (unsigned int i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
-        m_assoc_sta_mld[i] = obj.m_assoc_sta_mld[i];
+    if (obj.m_assoc_sta_mld != NULL && obj.m_num_assoc_sta_mld != 0) {
+        alloc_assoc_sta_mld_storage();
+        for (unsigned int i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
+            m_assoc_sta_mld[i] = obj.m_assoc_sta_mld[i];
+        }
+    } else if (m_assoc_sta_mld != NULL) {
+        delete[] m_assoc_sta_mld;
+        m_assoc_sta_mld = NULL;
     }
+    m_num_assoc_sta_mld = obj.m_num_assoc_sta_mld;
 
     if (m_sta_map == NULL) {
         m_sta_map = hash_map_create();
@@ -3136,6 +3142,10 @@ int dm_easy_mesh_t::get_num_bss_for_associated_sta(mac_address_t sta_mac)
 
 bool dm_easy_mesh_t::is_sta_mld(mac_address_t sta_mac)
 {
+    if (m_assoc_sta_mld == NULL) {
+        return false;
+    }
+
     for (unsigned int i = 0; i < m_num_assoc_sta_mld; i++) {
         if (memcmp(sta_mac, m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, sizeof(mac_address_t)) == 0) {
             return true;
@@ -3287,6 +3297,13 @@ void dm_easy_mesh_t::deinit()
         m_sta_dassoc_map = NULL;
     }
     sta = NULL;
+
+    if (m_assoc_sta_mld != NULL) {
+        delete[] m_assoc_sta_mld;
+        m_assoc_sta_mld = NULL;
+    }
+    m_num_assoc_sta_mld = 0;
+
     if (m_wifi_data != nullptr) {
         free(m_wifi_data);
         m_wifi_data = nullptr;
@@ -3679,6 +3696,12 @@ void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_st
     em_affiliated_sta_info_t *target_aff_sta = NULL;                        
     unsigned int i, j, k;
 
+    if (assoc_sta_mld_info == NULL) {
+        return;
+    }
+
+    alloc_assoc_sta_mld_storage();
+
     // Find existing assoc STA MLD entry by STA MLD MAC address
     for (i = 0; i < m_num_assoc_sta_mld; i++) {
         if (memcmp(m_assoc_sta_mld[i].m_assoc_sta_mld_info.mac_addr, assoc_sta_mld_info->mac_addr,
@@ -3742,7 +3765,11 @@ void dm_easy_mesh_t::update_assoc_sta_mld_info(em_assoc_sta_mld_info_t *assoc_st
 
 void dm_easy_mesh_t::remove_assoc_sta_mld_info(mac_address_t sta_mld_mac)
 {
-    unsigned int found_idx = m_num_assoc_sta_mld; // sentinel: not found
+    if (m_assoc_sta_mld == NULL) {
+        return;
+    }
+
+    unsigned int found_idx = m_num_assoc_sta_mld;
     unsigned int i;
 
     for (i = 0; i < m_num_assoc_sta_mld; i++) {
@@ -3754,16 +3781,13 @@ void dm_easy_mesh_t::remove_assoc_sta_mld_info(mac_address_t sta_mld_mac)
     }
 
     if (found_idx == m_num_assoc_sta_mld) {
-        return; // not found
+        return;
     }
 
-    // Compact the array: shift entries after found_idx one position left.
-    for (unsigned int i = found_idx; i < m_num_assoc_sta_mld - 1; i++) {
+    for (i = found_idx; i < m_num_assoc_sta_mld - 1; i++) {
         m_assoc_sta_mld[i] = m_assoc_sta_mld[i + 1];
     }
 
-    // Zero out the vacated last slot and decrement count.
-    //memset(&m_assoc_sta_mld[m_num_assoc_sta_mld - 1], 0, sizeof(dm_assoc_sta_mld_t));
     m_assoc_sta_mld[m_num_assoc_sta_mld - 1].init();
     m_num_assoc_sta_mld--;
 }
@@ -3841,6 +3865,10 @@ char *dm_easy_mesh_t::db_cfg_type_get_criteria(db_cfg_type_t cfg_type)
 int dm_easy_mesh_t::init()
 {
     unsigned int i;
+    if (m_assoc_sta_mld != NULL) {
+        delete[] m_assoc_sta_mld;
+        m_assoc_sta_mld = NULL;
+    }
     m_num_assoc_sta_mld = 0;
     m_network.init();
     m_device.init();
@@ -3852,10 +3880,6 @@ int dm_easy_mesh_t::init()
     
     for (i = 0; i < EM_MAX_NET_SSIDS; i++) {
         m_network_ssid[i].init();
-    }
-
-    for (i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
-        m_assoc_sta_mld[i].init();
     }
 
     m_policy_map = hash_map_create();
@@ -3896,8 +3920,9 @@ void dm_easy_mesh_t::reset()
     memset(&m_network.m_net_info, 0, sizeof(em_network_info_t));
     memset(&m_device.m_device_info, 0, sizeof(em_device_info_t));
     memset(&m_db_cfg_param, 0, sizeof(em_db_cfg_param_t));
-    for (unsigned int i = 0; i < EM_MAX_ASSOC_STA_MLD; i++) {
-        m_assoc_sta_mld[i].init();
+    if (m_assoc_sta_mld != NULL) {
+        delete[] m_assoc_sta_mld;
+        m_assoc_sta_mld = NULL;
     }
 }
 

@@ -87,8 +87,8 @@ public:
     dm_ap_mld_t     m_ap_mld[EM_MAX_AP_MLD];
     bool    m_bsta_mld_present;
     dm_bsta_mld_t   m_bsta_mld;
-    unsigned int    m_num_assoc_sta_mld;
-    dm_assoc_sta_mld_t m_assoc_sta_mld[EM_MAX_ASSOC_STA_MLD];
+	unsigned int    m_num_assoc_sta_mld;
+	dm_assoc_sta_mld_t *m_assoc_sta_mld = NULL;
     dm_tid_to_link_t m_tid_to_link;
     em_unassoc_sta_metrics_rsp_t    m_unassoc_sta_metrics_rsp;
     em_unassoc_query_list_t m_unassoc_query_list;
@@ -1694,6 +1694,13 @@ public:
 	 * @returns The number of associated station MLDs.
 	 */
 	unsigned int get_num_assoc_sta_mld() { return m_num_assoc_sta_mld; }
+	void alloc_assoc_sta_mld_storage() {
+		if (m_assoc_sta_mld == NULL) {
+			m_assoc_sta_mld = new dm_assoc_sta_mld_t[EM_MAX_ASSOC_STA_MLD]();
+			printf("[MEM_OPT] assoc STA MLD array allocated: %zu bytes; sizeof(dm_easy_mesh_t)=%zu\n",
+				sizeof(dm_assoc_sta_mld_t) * static_cast<size_t>(EM_MAX_ASSOC_STA_MLD), sizeof(dm_easy_mesh_t));
+		}
+	}
     
 	/**!
 	 * @brief Retrieves the number of associated stations in the mesh network.
