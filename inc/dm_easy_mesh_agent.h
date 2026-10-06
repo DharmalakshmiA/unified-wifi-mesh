@@ -90,6 +90,7 @@ public:
 	 * @note Ensure that the data passed is properly formatted and null-terminated.
 	 */
 	void translate_onewifi_dml_data(char *);
+	void set_webconfig_bus_context(wifi_bus_desc_t *desc, bus_handle_t *bus_hdl);
     
     /**!
      * @brief Translates the OneWiFi statistics data.
@@ -387,6 +388,9 @@ public:
 	 * @note Ensure that the document and data pointers are valid before calling this function.
 	 */
 	static webconfig_error_t webconfig_dummy_apply(webconfig_subdoc_t *doc, webconfig_subdoc_data_t *data);
+
+	wifi_bus_desc_t *m_webconfig_bus_desc;
+	bus_handle_t *m_webconfig_bus_hdl;
     
 	/**!
 	* @brief Constructor for the dm_easy_mesh_agent class.

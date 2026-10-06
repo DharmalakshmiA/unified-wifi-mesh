@@ -1644,10 +1644,18 @@ void em_agent_t::input_listener()
         em_printfout("Error: descriptor is null");
     }
 
+    em_printfout("webconfig bus context before open desc=%p bus_hdl=%p data_model=%p\n",
+        static_cast<void *>(desc), static_cast<void *>(&m_bus_hdl), static_cast<void *>(&m_data_model));
+
     if (desc->bus_open_fn(&m_bus_hdl, service_name) != 0) {
         em_printfout("Error: bus open failed");
         return;
     }
+
+    m_data_model.set_webconfig_bus_context(desc, &m_bus_hdl);
+    em_printfout("webconfig bus context stored desc=%p bus_hdl=%p data_model=%p stored_desc=%p stored_hdl=%p\n",
+        static_cast<void *>(desc), static_cast<void *>(&m_bus_hdl), static_cast<void *>(&m_data_model),
+        static_cast<void *>(m_data_model.m_webconfig_bus_desc), static_cast<void *>(m_data_model.m_webconfig_bus_hdl));
 
     em_printfout("bus open success");
 
