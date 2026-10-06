@@ -65,8 +65,16 @@ int dm_easy_mesh_agent_t::analyze_dev_init(em_bus_event_t *evt, em_cmd_t *pcmd[]
 {
     int num = 0;
     dm_easy_mesh_agent_t  dm;
+    dm.set_webconfig_bus_context(m_webconfig_bus_desc, m_webconfig_bus_hdl);
     em_cmd_t *tmp;
-
+    dm.init();
+        em_printfout("analyze_dev_init before copy source=%p source_desc=%p source_hdl=%p temp=%p temp_desc=%p temp_hdl=%p\n",
+        static_cast<void *>(this), static_cast<void *>(m_webconfig_bus_desc), static_cast<void *>(m_webconfig_bus_hdl),
+        static_cast<void *>(&dm), static_cast<void *>(dm.m_webconfig_bus_desc), static_cast<void *>(dm.m_webconfig_bus_hdl));
+    dm = *this;
+        em_printfout("analyze_dev_init after copy source=%p source_desc=%p source_hdl=%p temp=%p temp_desc=%p temp_hdl=%p\n",
+        static_cast<void *>(this), static_cast<void *>(m_webconfig_bus_desc), static_cast<void *>(m_webconfig_bus_hdl),
+        static_cast<void *>(&dm), static_cast<void *>(dm.m_webconfig_bus_desc), static_cast<void *>(dm.m_webconfig_bus_hdl));
 	dm.translate_onewifi_dml_data(reinterpret_cast<char *> (evt->u.raw_buff));
 #ifdef AL_SAP
     // When AL_SAP is enabled the agent and controller AL MAC should be changed
@@ -112,6 +120,7 @@ int dm_easy_mesh_agent_t::analyze_sta_list(em_bus_event_t *evt, em_cmd_t *pcmd[]
     unsigned int num = 0, i = 0, num_radios = 0;
     unsigned int idx = 0, k = 0;
     dm_easy_mesh_agent_t  dm;
+    dm.set_webconfig_bus_context(m_webconfig_bus_desc, m_webconfig_bus_hdl);
     dm_sta_t *sta = NULL;
     em_cmd_t *tmp = NULL;
     mac_address_t sta_mld_mac;
@@ -266,6 +275,8 @@ void dm_easy_mesh_agent_t::translate_onewifi_dml_data (char *str)
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
             update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+    ext.bus_desc = m_webconfig_bus_desc;
+    ext.bus_hdl = m_webconfig_bus_hdl;
     
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -316,6 +327,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
     int num = 0;
     unsigned int j = 0, index = 0;
     dm_easy_mesh_agent_t  dm;
+	dm.set_webconfig_bus_context(m_webconfig_bus_desc, m_webconfig_bus_hdl);
     em_cmd_t *tmp;
     mac_addr_str_t mac_str;
     em_commit_target_t cm_config;
@@ -328,6 +340,8 @@ int dm_easy_mesh_agent_t::analyze_onewifi_vap_cb(em_bus_event_t *evt, em_cmd_t *
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, 
             get_op_class_info, get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac,
             update_scan_results, update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+    ext.bus_desc = dm.m_webconfig_bus_desc;
+    ext.bus_hdl = dm.m_webconfig_bus_hdl;
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
     if (webconfig_init(&config) != webconfig_error_none) {
@@ -396,6 +410,7 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
     mac_addr_str_t  mac_str;
     unsigned int index = 0;
     dm_easy_mesh_agent_t  dm;
+	dm.set_webconfig_bus_context(m_webconfig_bus_desc, m_webconfig_bus_hdl);
     em_cmd_t *tmp;
     em_commit_target_t cm_config;
 
@@ -404,6 +419,8 @@ int dm_easy_mesh_agent_t::analyze_onewifi_radio_cb(em_bus_event_t *evt, em_cmd_t
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info, 
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
             update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+    ext.bus_desc = dm.m_webconfig_bus_desc;
+    ext.bus_hdl = dm.m_webconfig_bus_hdl;
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -1030,6 +1047,8 @@ int dm_easy_mesh_agent_t::analyze_scan_result(em_bus_event_t *evt, em_cmd_t *pcm
             get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
             get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
             update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+    ext.bus_desc = m_webconfig_bus_desc;
+    ext.bus_hdl = m_webconfig_bus_hdl;
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -1262,6 +1281,8 @@ void dm_easy_mesh_agent_t::translate_and_decode_onewifi_subdoc(char *str, webcon
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
         get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
         update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
+    extdata.bus_desc = m_webconfig_bus_desc;
+    extdata.bus_hdl = m_webconfig_bus_hdl;
 
     config.initializer = webconfig_initializer_onewifi;
     config.apply_data =  webconfig_dummy_apply;
@@ -1285,7 +1306,6 @@ int dm_easy_mesh_agent_t::refresh_onewifi_subdoc(wifi_bus_desc_t *desc, bus_hand
         get_device_info, get_network_info, get_radio_info, get_ieee_1905_security_info, get_bss_info, get_op_class_info,
         get_first_sta_info, get_next_sta_info, get_sta_info, put_sta_info, get_bss_info_with_mac, update_scan_results,
         update_ap_mld_info, update_bsta_mld_info, update_assoc_sta_mld_info, get_ap_mld_frm_bssid, get_radio_cap_info);
-    /* let the encoder fetch a fresh radios[]/num_radios/hal_cap snapshot via bus GET */
     ext_data.bus_desc = desc;
     ext_data.bus_hdl = bus_hdl;
 
@@ -1335,7 +1355,14 @@ webconfig_error_t dm_easy_mesh_agent_t::webconfig_dummy_apply(webconfig_subdoc_t
 
 dm_easy_mesh_agent_t::dm_easy_mesh_agent_t()
 {
+    m_webconfig_bus_desc = NULL;
+    m_webconfig_bus_hdl = NULL;
+}
 
+void dm_easy_mesh_agent_t::set_webconfig_bus_context(wifi_bus_desc_t *desc, bus_handle_t *bus_hdl)
+{
+    m_webconfig_bus_desc = desc;
+    m_webconfig_bus_hdl = bus_hdl;
 }
 
 dm_easy_mesh_agent_t::~dm_easy_mesh_agent_t()
