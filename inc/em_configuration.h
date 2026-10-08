@@ -1216,13 +1216,6 @@ class em_configuration_t {
 	em_profile_type_t get_peer_profile_from_al_em();
 
 	/**!
-	 * @brief Retrieves the cached peer profile for this EM instance.
-	 *
-	 * @returns The cached peer profile.
-	 */
-	em_profile_type_t get_peer_profile() const { return m_peer_profile; }
-
-	/**!
 	 * @brief Updates the cached peer profile for this EM instance.
 	 *
 	 * @param[in] profile The peer profile to cache.
@@ -1623,6 +1616,12 @@ private:
     unsigned int m_m2_encrypted_settings_len[em_haul_type_max];
 
 public:
+	/**!
+	 * @brief Retrieves the cached peer profile for this EM instance.
+	 *
+	 * @returns The cached peer profile.
+	 */
+	em_profile_type_t get_peer_profile() const { return m_peer_profile; }
 
 	/* Parse a received AKM Suite Capabilities TLV and store per-BSS AKMs derived
 	 * from the profile assigned to each BSS's haul type (resolved from dm, then from
